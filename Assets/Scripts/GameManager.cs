@@ -21,7 +21,7 @@ namespace RecipeSlicer
         static readonly Color BackgroundTop = new Color32(0x4A, 0x33, 0x26, 0xFF);
         static readonly Color BackgroundBottom = new Color32(0x1E, 0x14, 0x0F, 0xFF);
         /// <summary>Затемнение картинки-фона: меньше — темнее, ингредиенты контрастнее.</summary>
-        static readonly Color BackgroundTint = new Color(0.58f, 0.6f, 0.68f);
+        static readonly Color BackgroundTint = new Color(0.6f, 0.6f, 0.64f);
 
         public Sfx Sfx { get; private set; }
         public Rect PlayArea { get; private set; }
@@ -394,6 +394,9 @@ namespace RecipeSlicer
                 // Картинку не искажаем: заполняем экран с сохранением пропорций (+4% под тряску), лишнее обрезается.
                 float scale = Mathf.Max(2f * halfW / size.x, 2f * halfH / size.y) * 1.04f;
                 _background.transform.localScale = new Vector3(scale, scale, 1f);
+                // Прижимаем к верху: полки и посуда на стене важнее, чем нижний край стола.
+                float top = halfH * 1.02f;
+                _background.transform.localPosition = new Vector3(0f, top - size.y * scale * 0.5f, 0f);
             }
             else
             {
