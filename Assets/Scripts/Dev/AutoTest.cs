@@ -15,6 +15,7 @@ namespace RecipeSlicer
             var args = System.Environment.GetCommandLineArgs();
             int i = System.Array.IndexOf(args, "-autotest");
             if (i < 0 || i + 1 >= args.Length) return;
+            Application.runInBackground = true; // окно теста может быть не в фокусе
             var go = new GameObject("AutoTest");
             go.AddComponent<AutoTest>()._dir = args[i + 1];
         }
@@ -50,6 +51,12 @@ namespace RecipeSlicer
             }
             yield return new WaitForSecondsRealtime(0.45f);
             Shot("combo");
+
+            game.Pause();
+            yield return new WaitForSecondsRealtime(0.3f);
+            Shot("pause");
+            yield return null;
+            game.Resume();
 
             float end = Time.realtimeSinceStartup + 9f;
             bool shot = false;
