@@ -506,7 +506,7 @@ namespace RecipeSlicer
             var main = Fill(NewRect("Main", menu));
             _mainScreen = main.gameObject;
             BigTitle(main, "Режь по рецепту!", new Vector2(0f, 330f));
-            MenuButton(main, new Vector2(0f, 110f), "Начать игру", true, () => ShowDishSelect(true));
+            MenuButton(main, new Vector2(0f, 110f), "▶  Начать игру", true, () => ShowDishSelect(true));
             MenuButton(main, new Vector2(0f, -40f), "Настройки", false, ShowSettings);
             MenuButton(main, new Vector2(0f, -190f), "Разработчики", false, () => ShowCredits(true));
         }
