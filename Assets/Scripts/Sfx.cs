@@ -20,7 +20,7 @@ namespace RecipeSlicer
     ///  2. Вылет еды                PlayLaunch()           Launch/launch_NN
     ///  3. Счётчик очков            PlayGood(fill)         Counter/counter_step_01..10
     ///  4. Промах (еда упала)       PlayMiss()             Miss/miss_NN
-    ///     Взмах по пустоте         PlaySwoosh()           Swipe/swipe_empty_NN
+    ///     Взмах (пока зажата мышь) SetSwipe(held, speed)  Swipe/swipe_loop (петля); без неё — PlaySwoosh(): Swipe/swipe_empty_NN
     ///     Перебор «уже хватит»     PlayOverflow()         Overflow/overflow_NN (пока — Miss)
     ///  5. Ошибка (лишний ингр.)    PlayBad()              Error/error_NN (пока — заглушка)
     ///  6. Выполнение задания       PlayComplete()         Task/task_complete_full
@@ -70,6 +70,11 @@ namespace RecipeSlicer
 
         // клипы из Resources
         readonly Dictionary<string, AudioClip[]> _slice = new Dictionary<string, AudioClip[]>();
+        // взмах: одна тихая петля «воздуха» на всё время зажатия мыши
+        AudioSource _swipeSource;
+        AudioLowPassFilter _swipeFilter;
+        AudioClip _swipeLoop;
+        float _swipeVolume, _swipeCutoff = SwipeCutoffSlow;
         AudioClip[] _launchClips, _swipeClips, _missClips, _overflowClips, _errorClips, _counterSteps, _clickClips;
         AudioClip[] _timerTicks; // индекс = секунд осталось (1..5)
         AudioClip _timerEnd, _countdownTick, _countdownGo, _taskFull, _taskShort, _lobbyMusic, _roundMusic;
@@ -99,6 +104,16 @@ namespace RecipeSlicer
             _cueSource.playOnAwake = false;
             _cueSource.spatialBlend = 0f;
             _cueSource.priority = 0;
+            // Свой объект: фильтр AudioLowPassFilter действует на все источники объекта, а нужен только взмаху.
+            var swipeGo = new GameObject("Swipe");
+            swipeGo.transform.SetParent(transform, false);
+            _swipeSource = swipeGo.AddComponent<AudioSource>();
+            _swipeFilter = swipeGo.AddComponent<AudioLowPassFilter>();
+            _swipeFilter.cutoffFrequency = SwipeCutoffSlow;
+            _swipeSource.playOnAwake = false;
+            _swipeSource.loop = true;
+            _swipeSource.spatialBlend = 0f;
+            _swipeSource.volume = 0f;
 
             _swoosh = MakeSwoosh();
             _chop = MakeChop();
@@ -121,6 +136,8 @@ namespace RecipeSlicer
                 _slice[kind] = LoadSet("Slice/slice_" + kind + "_", 3);
             _launchClips = LoadSet("Launch/launch_", 3);
             _swipeClips = LoadSet("Swipe/swipe_empty_", 3);
+            _swipeLoop = Load("Swipe/swipe_loop");
+            _swipeSource.clip = _swipeLoop;
             _missClips = LoadSet("Miss/miss_", 3);
             _overflowClips = LoadSet("Overflow/overflow_", 3);
             _errorClips = LoadSet("Error/error_", 3);
@@ -194,7 +211,54 @@ namespace RecipeSlicer
             if (!PlayRandom(_missClips, 0.4f)) Play(_lose, 0.25f, 0f, 1.3f);
         }
 
-        /// <summary>Быстрый взмах ножом (в том числе по пустоте).</summary>
+        /// <summary>Громкость петли взмаха на максимальной скорости (до множителя «Эффекты»).</summary>
+        const float SwipeMaxVolume = 0.18f;
+        /// <summary>Яркость «ветра»: медленно — глухой (фильтр 1,2 кГц), быстро — открытый (6 кГц).</summary>
+        const float SwipeCutoffSlow = 1200f;
+        const float SwipeCutoffFast = 6000f;
+        /// <summary>Во сколько раз тише взмах, пока звучат комбо, таймер или отсчёт.</summary>
+        const float SwipeDuck = 0.35f;
+
+        /// <summary>Есть петля взмаха — тогда вместо отдельных «шшш» звучит непрерывный «воздух».</summary>
+        public bool HasSwipeLoop => _swipeLoop != null;
+
+        /// <summary>
+        /// Взмах ножом, вызывается каждый кадр: пока мышь зажата, тихо звучит ветер,
+        /// громче и ярче при быстром движении; после отпускания плавно затихает.
+        /// Высота тона не меняется: петля настроена в ля минор под музыку.
+        /// </summary>
+        /// <param name="held">Зажата ли мышь (во время раунда).</param>
+        /// <param name="speed">Скорость курсора, юнитов в секунду.</param>
+        public void SetSwipe(bool held, float speed)
+        {
+            if (_swipeLoop == null) return;
+            float k = held ? Mathf.Clamp01((speed - 2f) / 28f) : 0f;
+            // Даже без движения слышен едва заметный фон — 20 % от максимума.
+            _swipeVolume = held ? Mathf.Lerp(0.2f, 1f, Mathf.Sqrt(k)) * SwipeMaxVolume : 0f;
+            _swipeCutoff = Mathf.Lerp(SwipeCutoffSlow, SwipeCutoffFast, k);
+            if (held && !_swipeSource.isPlaying)
+            {
+                _swipeSource.volume = 0f;
+                _swipeSource.Play();
+                // Каждый раз с разного места петли — звук не повторяется одинаково.
+                _swipeSource.time = Random.Range(0f, _swipeLoop.length * 0.9f);
+            }
+        }
+
+        void UpdateSwipe(float dt)
+        {
+            if (!_swipeSource.isPlaying) return;
+            float target = _swipeVolume * GameSettings.Effects;
+            // Не перебиваем важные сигналы: на время комбо, таймера и отсчёта ветер приглушается.
+            if (Time.unscaledTime < _duckUntil) target *= SwipeDuck;
+            // Нарастает быстро (~80 мс), затихает мягче (~200 мс) — без щелчков и «шипения» рывками.
+            float speed = target > _swipeSource.volume ? 12f : 5f;
+            _swipeSource.volume = Mathf.Lerp(_swipeSource.volume, target, 1f - Mathf.Exp(-speed * dt));
+            _swipeFilter.cutoffFrequency = Mathf.Lerp(_swipeFilter.cutoffFrequency, _swipeCutoff, 1f - Mathf.Exp(-8f * dt));
+            if (target <= 0f && _swipeSource.volume < 0.002f) _swipeSource.Stop();
+        }
+
+        /// <summary>Быстрый взмах ножом — отдельный звук; используется, только если нет петли swipe_loop.</summary>
         public void PlaySwoosh()
         {
             if (!PlayRandom(_swipeClips, 0.35f)) Play(_swoosh, 0.3f, 0.15f);
@@ -318,6 +382,7 @@ namespace RecipeSlicer
 
         void Update()
         {
+            UpdateSwipe(Time.unscaledDeltaTime);
             float step = Time.unscaledDeltaTime * MusicVolume / MusicFade;
             float level = MusicVolume * GameSettings.Music;
             float target = Time.unscaledTime < _duckUntil ? level * MusicDuck : level;

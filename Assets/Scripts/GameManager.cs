@@ -26,6 +26,8 @@ namespace RecipeSlicer
         public Sfx Sfx { get; private set; }
         /// <summary>Игра на паузе: время остановлено, открыто меню паузы.</summary>
         public bool IsPaused { get; private set; }
+        /// <summary>Идёт раунд и можно резать (не пауза, не отсчёт, не результат).</summary>
+        public bool IsSlicing => _state == State.Playing && !IsPaused;
         public Rect PlayArea { get; private set; }
         public float ViewHalfHeight => _cam.orthographicSize;
 

@@ -77,6 +77,7 @@ namespace RecipeSlicer
 
             // В паузе мышь нужна для меню: след не рисуем, звук взмаха не играем.
             bool pressed = InputUtil.PointerHeld(out var screen) && !_game.IsPaused;
+            float pointerSpeed = 0f;
             if (pressed)
             {
                 Vector2 world = _cam.ScreenToWorldPoint(screen);
@@ -89,10 +90,12 @@ namespace RecipeSlicer
                 {
                     float distance = Vector2.Distance(_prev, world);
                     float speed = distance / dt;
+                    pointerSpeed = speed;
                     if (speed >= MinSliceSpeed)
                     {
                         _game.OnSwipe(_prev, world);
-                        if (speed >= SwooshSpeed && _swooshCooldown <= 0f)
+                        // Старый звук отдельных взмахов — только если нет непрерывной петли.
+                        if (!_game.Sfx.HasSwipeLoop && speed >= SwooshSpeed && _swooshCooldown <= 0f)
                         {
                             _game.Sfx.PlaySwoosh();
                             _swooshCooldown = 0.25f;
@@ -104,6 +107,8 @@ namespace RecipeSlicer
                 _times.Add(now);
             }
             _wasPressed = pressed;
+            // Непрерывный «воздух» на всё время зажатия — только в раунде.
+            _game.Sfx.SetSwipe(pressed && _game.IsSlicing, pointerSpeed);
 
             while (_times.Count > 0 && now - _times[0] > TrailLifetime)
             {
