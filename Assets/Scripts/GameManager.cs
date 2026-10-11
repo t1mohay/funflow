@@ -24,6 +24,8 @@ namespace RecipeSlicer
         static readonly Color BackgroundTint = new Color(0.6f, 0.6f, 0.64f);
 
         public Sfx Sfx { get; private set; }
+        /// <summary>Игра на паузе: время остановлено, открыто меню паузы.</summary>
+        public bool IsPaused { get; private set; }
         public Rect PlayArea { get; private set; }
         public float ViewHalfHeight => _cam.orthographicSize;
 
@@ -47,6 +49,7 @@ namespace RecipeSlicer
 
         void Awake()
         {
+            GameSettings.Load();
             SetupCamera();
 
             _background = new GameObject("Background").AddComponent<SpriteRenderer>();
@@ -99,6 +102,7 @@ namespace RecipeSlicer
 
         public void StartRound(RecipeDef recipe)
         {
+            ClearPause();
             ClearIngredients();
             _recipe = recipe;
             _round = new RoundState(recipe);
@@ -112,7 +116,7 @@ namespace RecipeSlicer
             _ui.ShowRound(_round);
             _ui.ShowBanner("Режь только то, что в списке «НУЖНО»!", GameUI.AccentColor, 2.6f);
             Sfx.PlayClick();
-            Sfx.PlayMusic(MusicTrack.Round);
+            Sfx.PlayMusic(MusicTrack.Round, restart: true);
         }
 
         public void Restart()
@@ -126,12 +130,48 @@ namespace RecipeSlicer
             GoToMenu();
         }
 
+        // ───────────────────────── Пауза ─────────────────────────
+
+        /// <summary>Пауза доступна во время отсчёта и раунда.</summary>
+        public void Pause()
+        {
+            if (IsPaused || (_state != State.Countdown && _state != State.Playing)) return;
+            IsPaused = true;
+            Time.timeScale = 0f;
+            _ui.ShowPause(true);
+            Sfx.PlayClick();
+            // В паузе играет музыка меню; музыка раунда запомнит место и продолжится после паузы.
+            Sfx.PlayMusic(MusicTrack.Lobby);
+        }
+
+        public void Resume()
+        {
+            if (!IsPaused) return;
+            ClearPause();
+            Sfx.PlayClick();
+            Sfx.PlayMusic(MusicTrack.Round);
+        }
+
+        public void TogglePause()
+        {
+            if (IsPaused) Resume();
+            else Pause();
+        }
+
+        void ClearPause()
+        {
+            IsPaused = false;
+            Time.timeScale = 1f;
+            _ui.ShowPause(false);
+        }
+
         public int BestScore(RecipeDef recipe) => PlayerPrefs.GetInt(BestKey(recipe), -1);
 
         static string BestKey(RecipeDef recipe) => "best_" + recipe.Id;
 
         void GoToMenu()
         {
+            ClearPause();
             ClearIngredients();
             _state = State.Menu;
             _ui.ShowMenu();
@@ -141,6 +181,13 @@ namespace RecipeSlicer
         void Update()
         {
             UpdateLayout();
+
+            if (IsPaused)
+            {
+                if (InputUtil.BackPressed()) Resume();
+                else if (InputUtil.RestartPressed()) Restart();
+                return;
+            }
 
             switch (_state)
             {
@@ -183,7 +230,8 @@ namespace RecipeSlicer
             }
             if (InputUtil.BackPressed())
             {
-                BackToMenu();
+                if (_state == State.Countdown || _state == State.Playing) Pause();
+                else BackToMenu();
                 return true;
             }
             return false;
@@ -308,7 +356,7 @@ namespace RecipeSlicer
         /// <summary>Отрезок свайпа за кадр (в мировых координатах).</summary>
         public void OnSwipe(Vector2 from, Vector2 to)
         {
-            if (_state != State.Playing) return;
+            if (_state != State.Playing || IsPaused) return;
 
             Vector2 direction = (to - from).normalized;
             for (int i = _active.Count - 1; i >= 0; i--)

@@ -46,7 +46,8 @@ namespace RecipeSlicer
             float dt = Mathf.Max(Time.unscaledDeltaTime, 0.0001f);
             _swooshCooldown -= dt;
 
-            bool pressed = InputUtil.PointerHeld(out var screen);
+            // В паузе мышь нужна для меню: след не рисуем, звук взмаха не играем.
+            bool pressed = InputUtil.PointerHeld(out var screen) && !_game.IsPaused;
             if (pressed)
             {
                 Vector2 world = _cam.ScreenToWorldPoint(screen);
