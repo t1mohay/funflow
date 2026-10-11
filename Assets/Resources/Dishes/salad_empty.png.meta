@@ -1,15 +1,15 @@
 fileFormatVersion: 2
-guid: be7de634578994d49b7d113ef04b6d6f
+guid: 11338855a6e7743438e80f57f4740486
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 8020086585339387735
-    second: dishes_0
+      213: 5429338341704515358
+    second: salad_empty_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
     mipMapMode: 0
-    enableMipMap: 0
+    enableMipMap: 1
     sRGBTexture: 1
     linearTexture: 0
     fadeOut: 0
@@ -74,7 +74,7 @@ TextureImporter:
   platformSettings:
   - serializedVersion: 4
     buildTarget: DefaultTexturePlatform
-    maxTextureSize: 2048
+    maxTextureSize: 512
     resizeAlgorithm: 0
     textureFormat: -1
     textureCompression: 2
@@ -102,13 +102,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: dishes_0
+      name: salad_empty_0
       rect:
         serializedVersion: 2
-        x: 0
-        y: 0
-        width: 1280
-        height: 853
+        x: 4
+        y: 61
+        width: 502
+        height: 372
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -117,8 +117,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 75f9703d1421d4f60800000000000000
-      internalID: 8020086585339387735
+      spriteID: e1fb4b6b472e85b40800000000000000
+      internalID: 5429338341704515358
       vertices: []
       indices: 
       edges: []
@@ -136,8 +136,7 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable:
-      dishes_0: 8020086585339387735
+    nameFileIdTable: {}
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
