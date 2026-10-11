@@ -80,6 +80,8 @@ namespace RecipeSlicer
         AudioSource _cueSource;
         float _duckUntil;
         MusicTrack _music = MusicTrack.None;
+        // где остановился каждый трек — после паузы музыка раунда продолжается с того же места
+        readonly Dictionary<AudioClip, float> _musicPositions = new Dictionary<AudioClip, float>();
 
         void Awake()
         {
@@ -262,7 +264,7 @@ namespace RecipeSlicer
         void PlayCue(AudioClip clip, float volume, float duck)
         {
             if (clip == null) return;
-            _cueSource.PlayOneShot(clip, volume);
+            _cueSource.PlayOneShot(clip, volume * GameSettings.Effects);
             _duckUntil = Mathf.Max(_duckUntil, Time.unscaledTime + duck);
         }
 
@@ -279,25 +281,37 @@ namespace RecipeSlicer
 
         // ───────────────────────── 8–9. Музыка ─────────────────────────
 
-        /// <summary>Плавно переключает фоновую музыку. Без файла game_loop в раунде играет лобби.</summary>
-        public void PlayMusic(MusicTrack music)
+        /// <summary>
+        /// Плавно переключает фоновую музыку. Без файла game_loop в раунде играет лобби.
+        /// Трек продолжается с места, где его остановили (например, после паузы),
+        /// а restart: true запускает его с начала (новый раунд).
+        /// </summary>
+        public void PlayMusic(MusicTrack music, bool restart = false)
         {
-            if (music == _music) return;
-            _music = music;
-
             AudioClip clip = null;
             if (music == MusicTrack.Lobby) clip = _lobbyMusic;
             else if (music == MusicTrack.Round) clip = _roundMusic != null ? _roundMusic : _lobbyMusic;
+            if (restart && clip != null) _musicPositions.Remove(clip);
+
+            if (music == _music) return;
+            _music = music;
 
             // Тот же трек уже играет (раунд без своей музыки) — не перезапускаем.
             if (clip != null && _musicA.clip == clip && _musicA.isPlaying) return;
+
+            if (_musicA.clip != null && _musicA.isPlaying) _musicPositions[_musicA.clip] = _musicA.time;
 
             // A — текущий, B — затухающий
             (_musicA, _musicB) = (_musicB, _musicA);
             _musicA.clip = clip;
             _musicA.volume = 0f;
-            if (clip != null) _musicA.Play();
-            else _musicA.Stop();
+            if (clip == null)
+            {
+                _musicA.Stop();
+                return;
+            }
+            _musicA.Play();
+            if (_musicPositions.TryGetValue(clip, out float position) && position < clip.length) _musicA.time = position;
         }
 
         public void StopMusic() => PlayMusic(MusicTrack.None);
@@ -305,7 +319,8 @@ namespace RecipeSlicer
         void Update()
         {
             float step = Time.unscaledDeltaTime * MusicVolume / MusicFade;
-            float target = Time.unscaledTime < _duckUntil ? MusicVolume * MusicDuck : MusicVolume;
+            float level = MusicVolume * GameSettings.Music;
+            float target = Time.unscaledTime < _duckUntil ? level * MusicDuck : level;
             // вниз — быстро (0,15 с), чтобы сигнал сразу был слышен; вверх — плавно
             float rate = _musicA.volume > target ? MusicVolume / 0.15f * Time.unscaledDeltaTime : step;
             if (_musicA.clip != null) _musicA.volume = Mathf.MoveTowards(_musicA.volume, target, rate);
@@ -344,7 +359,7 @@ namespace RecipeSlicer
             var source = _sources[_next];
             _next = (_next + 1) % _sources.Length;
             source.clip = clip;
-            source.volume = volume;
+            source.volume = volume * GameSettings.Effects;
             source.pitch = pitch + Random.Range(-pitchJitter, pitchJitter);
             source.Play();
         }

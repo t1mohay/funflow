@@ -59,7 +59,12 @@ namespace RecipeSlicer
         Font _font;
         RectTransform _root;
 
-        GameObject _menu, _hud, _results;
+        GameObject _menu, _hud, _results, _pause;
+        Image _brightness;
+        GameObject _pauseButton;
+        Text _resolutionLabel, _windowModeLabel;
+        readonly List<Vector2Int> _resolutions = new List<Vector2Int>();
+        int _resolutionIndex;
         RectTransform _neededList, _wrongList, _floatLayer, _timerRect;
         GameObject _timerPlate;
         Text _timer, _score, _countdown, _banner;
@@ -100,6 +105,8 @@ namespace RecipeSlicer
                 "", 200, TextColor, TextAnchor.MiddleCenter, FontStyle.Bold);
             BuildMenu();
             BuildResults();
+            BuildPause();
+            BuildBrightnessOverlay();
         }
 
         // ───────────────────────── Экраны ─────────────────────────
@@ -120,6 +127,13 @@ namespace RecipeSlicer
             }
         }
 
+        public void ShowPause(bool visible)
+        {
+            if (_pause == null) return;
+            if (visible) RefreshGraphicsLabels();
+            _pause.SetActive(visible);
+        }
+
         public void ShowRound(RoundState round)
         {
             _menu.SetActive(false);
@@ -128,6 +142,7 @@ namespace RecipeSlicer
             _timerRect.gameObject.SetActive(true);
             _timerPlate.SetActive(true);
             _score.gameObject.SetActive(true);
+            _pauseButton.SetActive(true);
             BuildRows(round.Recipe);
             RefreshRows(round);
             UpdateTimer(round);
@@ -139,6 +154,7 @@ namespace RecipeSlicer
             _timerRect.gameObject.SetActive(false);
             _timerPlate.SetActive(false);
             _score.gameObject.SetActive(false);
+            _pauseButton.SetActive(false);
 
             var dish = Art.DishSprite(round.Recipe);
             _resIcon.sprite = dish;
@@ -371,6 +387,12 @@ namespace RecipeSlicer
             _timer = AddText(_timerRect, "1:00", 84, TextColor, TextAnchor.MiddleCenter, FontStyle.Bold);
             _score = AddText(Place(NewRect("Score", hud), new Vector2(0.5f, 1f), new Vector2(0f, -150f), new Vector2(600f, 60f)),
                 "", 36, AccentColor, TextAnchor.MiddleCenter, FontStyle.Bold);
+
+            // Кнопка паузы справа от таймера (то же, что Esc).
+            var pause = Place(NewRect("PauseButton", hud), new Vector2(0.5f, 1f), new Vector2(290f, -70f), new Vector2(96f, 96f));
+            MakeButton(pause, SecondaryButtonColor, _game.Pause);
+            _pauseButton = pause.gameObject;
+            AddText(Fill(NewRect("Label", pause)), "II", 46, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
         }
 
         RectTransform BuildSidePanel(RectTransform parent, string name, string title, Color titleColor, float xMin, float xMax)
@@ -469,7 +491,7 @@ namespace RecipeSlicer
             }
 
             AddText(Place(NewRect("Help", menu), new Vector2(0.5f, 0.09f), Vector2.zero, new Vector2(1700f, 60f)),
-                "Зажми левую кнопку мыши и проведи по ингредиенту   •   R — заново   •   Esc — в меню",
+                "Зажми левую кнопку мыши и проведи по ингредиенту   •   R — заново   •   Esc — пауза",
                 30, new Color(1f, 1f, 1f, 0.7f), TextAnchor.MiddleCenter, FontStyle.Normal);
         }
 
@@ -498,6 +520,185 @@ namespace RecipeSlicer
             var back = Place(NewRect("Back", panel), new Vector2(0.5f, 0f), new Vector2(220f, 80f), new Vector2(400f, 96f));
             MakeButton(back, SecondaryButtonColor, _game.BackToMenu);
             AddText(Fill(NewRect("Label", back)), "Другое блюдо  [Esc]", 32, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+        }
+
+        // ───────────────────────── Меню паузы ─────────────────────────
+
+        void BuildPause()
+        {
+            var pause = Fill(NewRect("Pause", _root));
+            _pause = pause.gameObject;
+            // Затемнение ловит клики, чтобы под паузой ничего не нажималось.
+            AddImage(pause, new Color(0f, 0f, 0f, 0.6f), null).raycastTarget = true;
+
+            var panel = Place(NewRect("Panel", pause), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1000f, 940f));
+            AddImage(panel, CardColor, Art.RoundedRect);
+
+            AddText(Top(panel, 24f, 90f), "ПАУЗА", 72, AccentColor, TextAnchor.MiddleCenter, FontStyle.Bold);
+
+            AddText(Top(panel, 124f, 50f), "Звук", 40, GoodColor, TextAnchor.MiddleLeft, FontStyle.Bold);
+            SliderRow(panel, 182f, "Общая громкость", 0f, 1f, GameSettings.Master, GameSettings.SetMaster, Percent);
+            SliderRow(panel, 252f, "Музыка", 0f, 1f, GameSettings.Music, GameSettings.SetMusic, Percent);
+            SliderRow(panel, 322f, "Эффекты", 0f, 1f, GameSettings.Effects, GameSettings.SetEffects, Percent);
+
+            AddText(Top(panel, 410f, 50f), "Графика", 40, GoodColor, TextAnchor.MiddleLeft, FontStyle.Bold);
+            CollectResolutions();
+            _resolutionLabel = CyclerRow(panel, 468f, "Разрешение", () => ChangeResolution(-1), () => ChangeResolution(1));
+            _windowModeLabel = CyclerRow(panel, 538f, "Режим", ToggleWindowMode, ToggleWindowMode);
+            SliderRow(panel, 608f, "Яркость", GameSettings.MinBrightness, GameSettings.MaxBrightness, GameSettings.Brightness,
+                v =>
+                {
+                    GameSettings.SetBrightness(v);
+                    ApplyBrightness();
+                }, Percent);
+
+            const float buttonY = 78f;
+            var resume = Place(NewRect("Resume", panel), new Vector2(0.5f, 0f), new Vector2(-310f, buttonY), new Vector2(290f, 96f));
+            MakeButton(resume, ButtonColor, _game.Resume);
+            AddText(Fill(NewRect("Label", resume)), "Продолжить  [Esc]", 30, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+
+            var restart = Place(NewRect("Restart", panel), new Vector2(0.5f, 0f), new Vector2(0f, buttonY), new Vector2(290f, 96f));
+            MakeButton(restart, SecondaryButtonColor, _game.Restart);
+            AddText(Fill(NewRect("Label", restart)), "Заново  [R]", 30, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+
+            var menu = Place(NewRect("ToMenu", panel), new Vector2(0.5f, 0f), new Vector2(310f, buttonY), new Vector2(290f, 96f));
+            MakeButton(menu, SecondaryButtonColor, _game.BackToMenu);
+            AddText(Fill(NewRect("Label", menu)), "В главное меню", 30, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+
+            _pause.SetActive(false);
+        }
+
+        static string Percent(float value) => $"{Mathf.RoundToInt(value * 100f)}%";
+
+        /// <summary>Строка «подпись — ползунок — значение».</summary>
+        void SliderRow(RectTransform panel, float top, string title, float min, float max, float value,
+            System.Action<float> onChange, System.Func<float, string> format)
+        {
+            var row = Top(panel, top, 56f);
+            AddText(Stretch(NewRect("Label", row), Vector2.zero, new Vector2(0.38f, 1f), Vector2.zero, Vector2.zero),
+                title, 32, TextColor, TextAnchor.MiddleLeft, FontStyle.Normal);
+            var valueText = AddText(Stretch(NewRect("Value", row), new Vector2(0.86f, 0f), Vector2.one, Vector2.zero, Vector2.zero),
+                format(value), 30, AccentColor, TextAnchor.MiddleRight, FontStyle.Bold);
+
+            var area = Stretch(NewRect("Slider", row), new Vector2(0.4f, 0.2f), new Vector2(0.84f, 0.8f), Vector2.zero, Vector2.zero);
+            var background = AddImage(Fill(NewRect("Background", area)), new Color(0f, 0f, 0f, 0.45f), Art.RoundedRect);
+            background.raycastTarget = true;
+
+            var fillArea = Stretch(NewRect("FillArea", area), Vector2.zero, Vector2.one, new Vector2(4f, 4f), new Vector2(-4f, -4f));
+            // Slider двигает только горизонтальные якоря — по высоте заливка растянута сама.
+            var fill = Fill(NewRect("Fill", fillArea));
+            AddImage(fill, AccentColor, Art.RoundedRect);
+
+            var handleArea = Stretch(NewRect("HandleArea", area), Vector2.zero, Vector2.one, new Vector2(16f, 0f), new Vector2(-16f, 0f));
+            var handle = NewRect("Handle", handleArea);
+            handle.sizeDelta = new Vector2(38f, 38f);
+            var handleImage = AddImage(handle, Color.white, Art.Circle);
+            handleImage.type = Image.Type.Simple;
+            handleImage.raycastTarget = true;
+
+            var slider = area.gameObject.AddComponent<Slider>();
+            slider.fillRect = fill;
+            slider.handleRect = handle;
+            slider.targetGraphic = handleImage;
+            slider.direction = Slider.Direction.LeftToRight;
+            slider.minValue = min;
+            slider.maxValue = max;
+            slider.SetValueWithoutNotify(value);
+            slider.onValueChanged.AddListener(v =>
+            {
+                onChange(v);
+                valueText.text = format(v);
+            });
+        }
+
+        /// <summary>Строка «подпись — [&lt;] значение [&gt;]». Возвращает текст значения.</summary>
+        Text CyclerRow(RectTransform panel, float top, string title, UnityAction onPrev, UnityAction onNext)
+        {
+            var row = Top(panel, top, 56f);
+            AddText(Stretch(NewRect("Label", row), Vector2.zero, new Vector2(0.38f, 1f), Vector2.zero, Vector2.zero),
+                title, 32, TextColor, TextAnchor.MiddleLeft, FontStyle.Normal);
+
+            var prev = Stretch(NewRect("Prev", row), new Vector2(0.4f, 0f), new Vector2(0.47f, 1f), Vector2.zero, Vector2.zero);
+            MakeButton(prev, SecondaryButtonColor, onPrev);
+            AddText(Fill(NewRect("Label", prev)), "<", 34, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+
+            var next = Stretch(NewRect("Next", row), new Vector2(0.93f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
+            MakeButton(next, SecondaryButtonColor, onNext);
+            AddText(Fill(NewRect("Label", next)), ">", 34, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+
+            return AddText(Stretch(NewRect("Value", row), new Vector2(0.47f, 0f), new Vector2(0.93f, 1f), Vector2.zero, Vector2.zero),
+                "", 32, AccentColor, TextAnchor.MiddleCenter, FontStyle.Bold);
+        }
+
+        // ───────────────────────── Графика ─────────────────────────
+
+        void CollectResolutions()
+        {
+            _resolutions.Clear();
+            foreach (var r in Screen.resolutions)
+            {
+                var size = new Vector2Int(r.width, r.height);
+                if (!_resolutions.Contains(size)) _resolutions.Add(size);
+            }
+            _resolutions.Sort((a, b) => a.x != b.x ? a.x.CompareTo(b.x) : a.y.CompareTo(b.y));
+            if (_resolutions.Count == 0) _resolutions.Add(new Vector2Int(Screen.width, Screen.height));
+            _resolutionIndex = FindCurrentResolution();
+        }
+
+        int FindCurrentResolution()
+        {
+            int index = _resolutions.IndexOf(new Vector2Int(Screen.width, Screen.height));
+            return index >= 0 ? index : _resolutions.Count - 1;
+        }
+
+        void ChangeResolution(int delta)
+        {
+            _resolutionIndex = Mathf.Clamp(_resolutionIndex + delta, 0, _resolutions.Count - 1);
+            var size = _resolutions[_resolutionIndex];
+            Screen.SetResolution(size.x, size.y, Screen.fullScreenMode);
+            _game.Sfx.PlayClick();
+            RefreshGraphicsLabels();
+        }
+
+        void ToggleWindowMode()
+        {
+            bool windowed = Screen.fullScreenMode == FullScreenMode.Windowed;
+            var mode = windowed ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed;
+            var size = _resolutions[_resolutionIndex];
+            Screen.SetResolution(size.x, size.y, mode);
+            _game.Sfx.PlayClick();
+            RefreshGraphicsLabels(mode);
+        }
+
+        void RefreshGraphicsLabels() => RefreshGraphicsLabels(Screen.fullScreenMode);
+
+        void RefreshGraphicsLabels(FullScreenMode mode)
+        {
+            if (_resolutionLabel == null) return;
+            var size = _resolutions[_resolutionIndex];
+            _resolutionLabel.text = $"{size.x} x {size.y}";
+            _windowModeLabel.text = mode == FullScreenMode.Windowed ? "В окне" : "Полный экран";
+        }
+
+        /// <summary>Яркость — полупрозрачный слой поверх всего (и игры, и интерфейса).</summary>
+        void BuildBrightnessOverlay()
+        {
+            var go = new GameObject("BrightnessCanvas", typeof(RectTransform), typeof(Canvas));
+            go.transform.SetParent(transform, false);
+            var canvas = go.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 1000;
+            _brightness = AddImage(Fill(NewRect("Brightness", go.transform)), Color.clear, null);
+            ApplyBrightness();
+        }
+
+        void ApplyBrightness()
+        {
+            float b = GameSettings.Brightness;
+            // < 1 — затемняем чёрным, > 1 — осветляем белым (мягче, чтобы не выбеливать картинку).
+            _brightness.color = b < 1f
+                ? new Color(0f, 0f, 0f, (1f - b) * 1.2f)
+                : new Color(1f, 1f, 1f, (b - 1f) * 0.35f);
         }
 
         // ───────────────────────── Хелперы ─────────────────────────
