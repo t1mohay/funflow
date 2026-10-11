@@ -6,6 +6,7 @@
 | Картинки блюд (`Assets/Resources/Dishes`) и запасные ингредиенты (`ArtAlt/Noto3D`) | [Noto Emoji](https://github.com/googlefonts/noto-emoji), стиль 3D, PNG 512 px | Apache License 2.0 (текст: `Assets/Resources/NOTO_EMOJI_LICENSE.txt`) |
 | Фон-кухня (`Assets/Resources/Kitchen`) | нарисован кодом, `Tools/Background` | свой |
 | Запасной плоский стиль (`ArtAlt/Noto2D`) | [Noto Emoji](https://github.com/googlefonts/noto-emoji), стиль 2D | Apache License 2.0 |
+| Нож на ползунках меню паузы (`Assets/Resources/UI/knife.png`) | нарисован скриптом `Tools/ArtGen/gen_knife.py` в стиле картинок ингредиентов | свой |
 | Звуки и музыка (`Assets/Resources/Audio`) | синтезированы скриптами `Tools/AudioGen` (без сэмплов); если файла нет, `Sfx.cs` генерирует заглушку | свои |
 
 Соответствие эмодзи и ингредиентов:

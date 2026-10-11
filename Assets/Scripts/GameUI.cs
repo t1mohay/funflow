@@ -524,76 +524,146 @@ namespace RecipeSlicer
 
         // ───────────────────────── Меню паузы ─────────────────────────
 
+        // Палитра в стиле главного меню: кремовые панели в деревянной рамке, оливковые кнопки.
+        static readonly Color MenuCream = new Color32(0xF6, 0xEB, 0xD3, 0xFF);
+        static readonly Color MenuCreamDark = new Color32(0xE6, 0xD3, 0xAE, 0xFF);
+        static readonly Color MenuFrame = new Color32(0xC9, 0x81, 0x3F, 0xFF);
+        static readonly Color MenuOutline = new Color32(0x7A, 0x45, 0x1C, 0xFF);
+        static readonly Color MenuGreen = new Color32(0x6E, 0x84, 0x43, 0xFF);
+        static readonly Color MenuGreenText = new Color32(0x45, 0x55, 0x22, 0xFF);
+        static readonly Color MenuBrownText = new Color32(0x5A, 0x3D, 0x22, 0xFF);
+        static readonly Color MenuLightText = new Color32(0xFF, 0xF6, 0xE3, 0xFF);
+
         void BuildPause()
         {
             var pause = Fill(NewRect("Pause", _root));
             _pause = pause.gameObject;
             // Затемнение ловит клики, чтобы под паузой ничего не нажималось.
-            AddImage(pause, new Color(0f, 0f, 0f, 0.6f), null).raycastTarget = true;
+            AddImage(pause, new Color(0f, 0f, 0f, 0.55f), null).raycastTarget = true;
 
-            var panel = Place(NewRect("Panel", pause), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1000f, 940f));
-            AddImage(panel, CardColor, Art.RoundedRect);
+            var title = MenuText(Place(NewRect("Title", pause), new Vector2(0.5f, 0.5f), new Vector2(0f, 430f), new Vector2(900f, 130f)),
+                "Пауза", 100, MenuGreenText, TextAnchor.MiddleCenter, FontStyle.Bold);
+            title.GetComponent<Shadow>().enabled = false;
+            var outline = title.gameObject.AddComponent<Outline>();
+            outline.effectColor = MenuCream;
+            outline.effectDistance = new Vector2(4f, -4f);
 
-            AddText(Top(panel, 24f, 90f), "ПАУЗА", 72, AccentColor, TextAnchor.MiddleCenter, FontStyle.Bold);
+            // ── слева: блоки «Звук» и «Графика» в рамках
+            var sound = Place(NewRect("Sound", pause), new Vector2(0.5f, 0.5f), new Vector2(-250f, 175f), new Vector2(1000f, 330f));
+            Framed(sound, MenuCream, 10f);
+            SectionTitle(sound, "Звук");
+            SliderRow(sound, 92f, "Общая громкость", 0f, 1f, GameSettings.Master, GameSettings.SetMaster, Percent);
+            SliderRow(sound, 166f, "Музыка", 0f, 1f, GameSettings.Music, GameSettings.SetMusic, Percent);
+            SliderRow(sound, 240f, "Эффекты", 0f, 1f, GameSettings.Effects, GameSettings.SetEffects, Percent);
 
-            AddText(Top(panel, 124f, 50f), "Звук", 40, GoodColor, TextAnchor.MiddleLeft, FontStyle.Bold);
-            SliderRow(panel, 182f, "Общая громкость", 0f, 1f, GameSettings.Master, GameSettings.SetMaster, Percent);
-            SliderRow(panel, 252f, "Музыка", 0f, 1f, GameSettings.Music, GameSettings.SetMusic, Percent);
-            SliderRow(panel, 322f, "Эффекты", 0f, 1f, GameSettings.Effects, GameSettings.SetEffects, Percent);
-
-            AddText(Top(panel, 410f, 50f), "Графика", 40, GoodColor, TextAnchor.MiddleLeft, FontStyle.Bold);
+            var graphics = Place(NewRect("Graphics", pause), new Vector2(0.5f, 0.5f), new Vector2(-250f, -200f), new Vector2(1000f, 330f));
+            Framed(graphics, MenuCream, 10f);
+            SectionTitle(graphics, "Графика");
             CollectResolutions();
-            _resolutionLabel = CyclerRow(panel, 468f, "Разрешение", () => ChangeResolution(-1), () => ChangeResolution(1));
-            _windowModeLabel = CyclerRow(panel, 538f, "Режим", ToggleWindowMode, ToggleWindowMode);
-            SliderRow(panel, 608f, "Яркость", GameSettings.MinBrightness, GameSettings.MaxBrightness, GameSettings.Brightness,
+            _resolutionLabel = CyclerRow(graphics, 92f, "Разрешение", () => ChangeResolution(-1), () => ChangeResolution(1));
+            _windowModeLabel = CyclerRow(graphics, 166f, "Режим", ToggleWindowMode, ToggleWindowMode);
+            SliderRow(graphics, 240f, "Яркость", GameSettings.MinBrightness, GameSettings.MaxBrightness, GameSettings.Brightness,
                 v =>
                 {
                     GameSettings.SetBrightness(v);
                     ApplyBrightness();
                 }, Percent);
 
-            const float buttonY = 78f;
-            var resume = Place(NewRect("Resume", panel), new Vector2(0.5f, 0f), new Vector2(-310f, buttonY), new Vector2(290f, 96f));
-            MakeButton(resume, ButtonColor, _game.Resume);
-            AddText(Fill(NewRect("Label", resume)), "Продолжить  [Esc]", 30, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-
-            var restart = Place(NewRect("Restart", panel), new Vector2(0.5f, 0f), new Vector2(0f, buttonY), new Vector2(290f, 96f));
-            MakeButton(restart, SecondaryButtonColor, _game.Restart);
-            AddText(Fill(NewRect("Label", restart)), "Заново  [R]", 30, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
-
-            var menu = Place(NewRect("ToMenu", panel), new Vector2(0.5f, 0f), new Vector2(310f, buttonY), new Vector2(290f, 96f));
-            MakeButton(menu, SecondaryButtonColor, _game.BackToMenu);
-            AddText(Fill(NewRect("Label", menu)), "В главное меню", 30, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            // ── справа: кнопки, как в главном меню
+            MenuButton(pause, new Vector2(560f, 180f), "Продолжить", true, _game.Resume);
+            MenuButton(pause, new Vector2(560f, 30f), "Заново", false, _game.Restart);
+            MenuButton(pause, new Vector2(560f, -120f), "В главное меню", false, _game.BackToMenu);
 
             _pause.SetActive(false);
         }
 
         static string Percent(float value) => $"{Mathf.RoundToInt(value * 100f)}%";
 
-        /// <summary>Строка «подпись — ползунок — значение».</summary>
-        void SliderRow(RectTransform panel, float top, string title, float min, float max, float value,
+        /// <summary>
+        /// Рамка в стиле главного меню: тёмный контур, деревянная (оранжево-коричневая) рамка и заливка.
+        /// Возвращает картинку заливки.
+        /// </summary>
+        static Image Framed(RectTransform rt, Color fill, float frame)
+        {
+            AddImage(rt, MenuOutline, Art.RoundedRect);
+            AddImage(Stretch(NewRect("Frame", rt), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f)), MenuFrame, Art.RoundedRect);
+            float inset = 3f + frame;
+            var inner = AddImage(Stretch(NewRect("Fill", rt), Vector2.zero, Vector2.one, new Vector2(inset, inset), new Vector2(-inset, -inset)),
+                fill, Art.RoundedRect);
+            return inner;
+        }
+
+        void SectionTitle(RectTransform block, string text)
+        {
+            MenuText(Stretch(NewRect("Title", block), new Vector2(0f, 1f), Vector2.one, new Vector2(40f, -78f), new Vector2(-40f, -18f)),
+                text, 46, MenuGreenText, TextAnchor.MiddleLeft, FontStyle.Bold);
+        }
+
+        /// <summary>Тёмный текст на кремовом фоне: вместо чёрной тени — светлая подложка.</summary>
+        Text MenuText(RectTransform rt, string text, int size, Color color, TextAnchor anchor, FontStyle style)
+        {
+            var label = AddText(rt, text, size, color, anchor, style);
+            var shadow = label.GetComponent<Shadow>();
+            shadow.effectColor = new Color(1f, 1f, 1f, 0.45f);
+            shadow.effectDistance = new Vector2(1f, -2f);
+            return label;
+        }
+
+        /// <summary>Большая кнопка в рамке: основная — оливковая со светлым текстом, остальные — кремовые.</summary>
+        void MenuButton(RectTransform parent, Vector2 position, string text, bool primary, UnityAction onClick)
+        {
+            var rt = Place(NewRect(text, parent), new Vector2(0.5f, 0.5f), position, new Vector2(460f, 120f));
+            var fill = Framed(rt, primary ? MenuGreen : MenuCream, 8f);
+            MakeButtonOn(rt, fill, onClick);
+            MenuText(Fill(NewRect("Label", rt)), text, 44, primary ? MenuLightText : MenuGreenText, TextAnchor.MiddleCenter, FontStyle.Bold);
+        }
+
+        /// <summary>Кнопка на уже нарисованной рамке: подсвечивается заливка, клики ловит вся рамка.</summary>
+        static void MakeButtonOn(RectTransform rt, Image fill, UnityAction onClick)
+        {
+            var hit = rt.GetComponent<Image>();
+            hit.raycastTarget = true;
+            var button = rt.gameObject.AddComponent<Button>();
+            button.targetGraphic = fill;
+            var colors = button.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1f, 0.93f, 0.8f);
+            colors.pressedColor = new Color(0.8f, 0.8f, 0.8f);
+            colors.selectedColor = Color.white;
+            button.colors = colors;
+            button.onClick.AddListener(onClick);
+        }
+
+        /// <summary>Строка «подпись — ползунок с ножом — значение».</summary>
+        void SliderRow(RectTransform block, float top, string title, float min, float max, float value,
             System.Action<float> onChange, System.Func<float, string> format)
         {
-            var row = Top(panel, top, 56f);
-            AddText(Stretch(NewRect("Label", row), Vector2.zero, new Vector2(0.38f, 1f), Vector2.zero, Vector2.zero),
-                title, 32, TextColor, TextAnchor.MiddleLeft, FontStyle.Normal);
-            var valueText = AddText(Stretch(NewRect("Value", row), new Vector2(0.86f, 0f), Vector2.one, Vector2.zero, Vector2.zero),
-                format(value), 30, AccentColor, TextAnchor.MiddleRight, FontStyle.Bold);
+            var row = Stretch(NewRect(title, block), new Vector2(0f, 1f), Vector2.one, new Vector2(40f, -top - 60f), new Vector2(-40f, -top));
+            MenuText(Stretch(NewRect("Label", row), Vector2.zero, new Vector2(0.36f, 1f), Vector2.zero, Vector2.zero),
+                title, 34, MenuBrownText, TextAnchor.MiddleLeft, FontStyle.Bold);
+            var valueText = MenuText(Stretch(NewRect("Value", row), new Vector2(0.87f, 0f), Vector2.one, Vector2.zero, Vector2.zero),
+                format(value), 34, MenuGreenText, TextAnchor.MiddleRight, FontStyle.Bold);
 
-            var area = Stretch(NewRect("Slider", row), new Vector2(0.4f, 0.2f), new Vector2(0.84f, 0.8f), Vector2.zero, Vector2.zero);
-            var background = AddImage(Fill(NewRect("Background", area)), new Color(0f, 0f, 0f, 0.45f), Art.RoundedRect);
-            background.raycastTarget = true;
+            // Дорожка — «разделочная доска»: тёмный контур, кремово-бежевая заливка.
+            var area = Stretch(NewRect("Slider", row), new Vector2(0.38f, 0.3f), new Vector2(0.85f, 0.7f), Vector2.zero, Vector2.zero);
+            AddImage(area, MenuOutline, Art.RoundedRect).raycastTarget = true;
+            AddImage(Stretch(NewRect("Track", area), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f)), MenuCreamDark, Art.RoundedRect);
 
-            var fillArea = Stretch(NewRect("FillArea", area), Vector2.zero, Vector2.one, new Vector2(4f, 4f), new Vector2(-4f, -4f));
+            // Заливка — уже «нарезанная» часть: оливковая, как основная кнопка.
+            var fillArea = Stretch(NewRect("FillArea", area), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f));
             // Slider двигает только горизонтальные якоря — по высоте заливка растянута сама.
             var fill = Fill(NewRect("Fill", fillArea));
-            AddImage(fill, AccentColor, Art.RoundedRect);
+            AddImage(fill, MenuGreen, Art.RoundedRect);
 
-            var handleArea = Stretch(NewRect("HandleArea", area), Vector2.zero, Vector2.one, new Vector2(16f, 0f), new Vector2(-16f, 0f));
+            // Ручка — нож лезвием вниз, «режет» дорожку в точке значения.
+            var handleArea = Stretch(NewRect("HandleArea", area), Vector2.zero, Vector2.one, new Vector2(14f, 0f), new Vector2(-14f, 0f));
             var handle = NewRect("Handle", handleArea);
-            handle.sizeDelta = new Vector2(38f, 38f);
-            var handleImage = AddImage(handle, Color.white, Art.Circle);
+            handle.pivot = new Vector2(0.5f, 0.42f);
+            handle.sizeDelta = new Vector2(30f, 76f);
+            var knife = Art.LoadSprite("UI/knife");
+            var handleImage = AddImage(handle, Color.white, knife != null ? knife : Art.Circle);
             handleImage.type = Image.Type.Simple;
+            handleImage.preserveAspect = true;
             handleImage.raycastTarget = true;
 
             var slider = area.gameObject.AddComponent<Slider>();
@@ -603,6 +673,10 @@ namespace RecipeSlicer
             slider.direction = Slider.Direction.LeftToRight;
             slider.minValue = min;
             slider.maxValue = max;
+            var colors = slider.colors;
+            colors.highlightedColor = new Color(1f, 0.95f, 0.85f);
+            colors.pressedColor = new Color(0.85f, 0.85f, 0.85f);
+            slider.colors = colors;
             slider.SetValueWithoutNotify(value);
             slider.onValueChanged.AddListener(v =>
             {
@@ -612,22 +686,24 @@ namespace RecipeSlicer
         }
 
         /// <summary>Строка «подпись — [&lt;] значение [&gt;]». Возвращает текст значения.</summary>
-        Text CyclerRow(RectTransform panel, float top, string title, UnityAction onPrev, UnityAction onNext)
+        Text CyclerRow(RectTransform block, float top, string title, UnityAction onPrev, UnityAction onNext)
         {
-            var row = Top(panel, top, 56f);
-            AddText(Stretch(NewRect("Label", row), Vector2.zero, new Vector2(0.38f, 1f), Vector2.zero, Vector2.zero),
-                title, 32, TextColor, TextAnchor.MiddleLeft, FontStyle.Normal);
+            var row = Stretch(NewRect(title, block), new Vector2(0f, 1f), Vector2.one, new Vector2(40f, -top - 60f), new Vector2(-40f, -top));
+            MenuText(Stretch(NewRect("Label", row), Vector2.zero, new Vector2(0.36f, 1f), Vector2.zero, Vector2.zero),
+                title, 34, MenuBrownText, TextAnchor.MiddleLeft, FontStyle.Bold);
 
-            var prev = Stretch(NewRect("Prev", row), new Vector2(0.4f, 0f), new Vector2(0.47f, 1f), Vector2.zero, Vector2.zero);
-            MakeButton(prev, SecondaryButtonColor, onPrev);
-            AddText(Fill(NewRect("Label", prev)), "<", 34, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            ArrowButton(Stretch(NewRect("Prev", row), new Vector2(0.38f, 0f), new Vector2(0.45f, 1f), Vector2.zero, Vector2.zero), "<", onPrev);
+            ArrowButton(Stretch(NewRect("Next", row), new Vector2(0.93f, 0f), Vector2.one, Vector2.zero, Vector2.zero), ">", onNext);
 
-            var next = Stretch(NewRect("Next", row), new Vector2(0.93f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
-            MakeButton(next, SecondaryButtonColor, onNext);
-            AddText(Fill(NewRect("Label", next)), ">", 34, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            return MenuText(Stretch(NewRect("Value", row), new Vector2(0.45f, 0f), new Vector2(0.93f, 1f), Vector2.zero, Vector2.zero),
+                "", 34, MenuGreenText, TextAnchor.MiddleCenter, FontStyle.Bold);
+        }
 
-            return AddText(Stretch(NewRect("Value", row), new Vector2(0.47f, 0f), new Vector2(0.93f, 1f), Vector2.zero, Vector2.zero),
-                "", 32, AccentColor, TextAnchor.MiddleCenter, FontStyle.Bold);
+        void ArrowButton(RectTransform rt, string arrow, UnityAction onClick)
+        {
+            var fill = Framed(rt, MenuGreen, 4f);
+            MakeButtonOn(rt, fill, onClick);
+            MenuText(Fill(NewRect("Label", rt)), arrow, 38, MenuLightText, TextAnchor.MiddleCenter, FontStyle.Bold);
         }
 
         // ───────────────────────── Графика ─────────────────────────
