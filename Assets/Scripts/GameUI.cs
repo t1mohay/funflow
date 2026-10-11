@@ -31,6 +31,10 @@ namespace RecipeSlicer
 
         const float RowHeight = 76f;
         const float RowGap = 8f;
+        /// <summary>Высота шапки боковой панели (заголовок) и нижний отступ — как в BuildSidePanel.</summary>
+        const float SidePanelTop = 92f;
+        const float SidePanelBottom = 12f;
+        const float DishBadgeSize = 120f;
         const float FloaterLife = 0.9f;
         const float CountdownLife = 0.65f;
 
@@ -69,6 +73,8 @@ namespace RecipeSlicer
         readonly List<Vector2Int> _resolutions = new List<Vector2Int>();
         int _resolutionIndex;
         RectTransform _neededList, _wrongList, _floatLayer, _timerRect;
+        RectTransform _neededPanel, _wrongPanel;
+        Image _dishBadge;
         GameObject _timerPlate;
         Text _timer, _score, _countdown, _banner;
         Image _flash;
@@ -388,8 +394,15 @@ namespace RecipeSlicer
             var hud = Fill(NewRect("HUD", _root));
             _hud = hud.gameObject;
 
-            _neededList = BuildSidePanel(hud, "Нужно", "НУЖНО", GoodColor, 0f, SidePanelFraction);
-            _wrongList = BuildSidePanel(hud, "НеНужно", "НЕ НУЖНО", BadColor, 1f - SidePanelFraction, 1f);
+            _neededList = BuildSidePanel(hud, "Нужно", "НУЖНО", GoodColor, 0f, SidePanelFraction, DishBadgeSize * 0.8f);
+            _wrongList = BuildSidePanel(hud, "НеНужно", "НЕ НУЖНО", BadColor, 1f - SidePanelFraction, 1f, 0f);
+            _neededPanel = (RectTransform)_neededList.parent;
+            _wrongPanel = (RectTransform)_wrongList.parent;
+
+            // Картинка блюда — в правом верхнем углу панели «Нужно», над колонкой счётчиков.
+            _dishBadge = AddImage(Place(NewRect("Dish", _neededPanel), Vector2.one, new Vector2(-DishBadgeSize * 0.4f, -8f),
+                new Vector2(DishBadgeSize, DishBadgeSize)), Color.white, null);
+            _dishBadge.preserveAspect = true;
 
             // Тёмная плашка под таймером и счётом — чтобы читались на светлом фоне.
             _timerPlate = Place(NewRect("TimerPlate", hud), new Vector2(0.5f, 1f), new Vector2(0f, -102f), new Vector2(460f, 176f)).gameObject;
@@ -406,12 +419,14 @@ namespace RecipeSlicer
             AddText(Fill(NewRect("Label", pause)), "II", 46, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
         }
 
-        RectTransform BuildSidePanel(RectTransform parent, string name, string title, Color titleColor, float xMin, float xMax)
+        /// <param name="titleRight">Место справа от заголовка (под картинку блюда).</param>
+        RectTransform BuildSidePanel(RectTransform parent, string name, string title, Color titleColor, float xMin, float xMax, float titleRight)
         {
-            var panel = Stretch(NewRect(name, parent), new Vector2(xMin, 0f), new Vector2(xMax, 1f),
-                new Vector2(xMin > 0f ? 8f : 16f, 16f), new Vector2(xMin > 0f ? -16f : -8f, -16f));
+            // По вертикали панель по центру экрана; высота задаётся в FitSidePanels по числу строк.
+            var panel = Stretch(NewRect(name, parent), new Vector2(xMin, 0.5f), new Vector2(xMax, 0.5f),
+                new Vector2(xMin > 0f ? 8f : 16f, -300f), new Vector2(xMin > 0f ? -16f : -8f, 300f));
             AddImage(panel, PanelColor, Art.RoundedRect);
-            AddText(Stretch(NewRect("Title", panel), new Vector2(0f, 1f), Vector2.one, new Vector2(12f, -80f), new Vector2(-12f, -14f)),
+            AddText(Stretch(NewRect("Title", panel), new Vector2(0f, 1f), Vector2.one, new Vector2(12f, -80f), new Vector2(-12f - titleRight, -14f)),
                 title, 40, titleColor, TextAnchor.MiddleCenter, FontStyle.Bold);
             return Stretch(NewRect("List", panel), Vector2.zero, Vector2.one, new Vector2(12f, 12f), new Vector2(-12f, -92f));
         }
@@ -424,6 +439,22 @@ namespace RecipeSlicer
                 _rows.Add(MakeRow(_neededList, i, recipe.Needed[i].Ingredient, recipe.Needed[i].Count, false));
             for (int i = 0; i < recipe.Wrong.Length; i++)
                 _rows.Add(MakeRow(_wrongList, i, recipe.Wrong[i], 0, true));
+            FitSidePanels(Mathf.Max(recipe.Needed.Length, recipe.Wrong.Length));
+
+            var dish = Art.DishSprite(recipe);
+            _dishBadge.sprite = dish;
+            _dishBadge.enabled = dish != null;
+        }
+
+        /// <summary>Обе боковые панели одной высоты (по самому длинному списку) и по центру экрана — выровнены друг с другом.</summary>
+        void FitSidePanels(int rows)
+        {
+            float height = SidePanelTop + rows * (RowHeight + RowGap) - RowGap + SidePanelBottom;
+            foreach (var panel in new[] { _neededPanel, _wrongPanel })
+            {
+                panel.offsetMin = new Vector2(panel.offsetMin.x, -height * 0.5f);
+                panel.offsetMax = new Vector2(panel.offsetMax.x, height * 0.5f);
+            }
         }
 
         Row MakeRow(RectTransform list, int index, IngredientDef def, int need, bool wrong)
