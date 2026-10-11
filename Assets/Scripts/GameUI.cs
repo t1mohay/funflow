@@ -532,6 +532,15 @@ namespace RecipeSlicer
             if (background == null) bg.color = CardColor;
             else _menuBackgroundAspect = background.rect.width / background.rect.height;
 
+            // Текучий фон в духе Balatro (шейдер Resources/Shaders/MenuSwirl). Если шейдер не поддерживается — остаётся кухня.
+            var swirl = SwirlMaterial();
+            if (swirl != null)
+            {
+                var fluid = AddImage(Fill(NewRect("Swirl", menu)), Color.white, null);
+                fluid.material = swirl;
+                _menuBackground.gameObject.SetActive(false);
+            }
+
             BuildMainScreen(menu);
             BuildDishScreen(menu);
             BuildCredits(menu);
@@ -684,6 +693,14 @@ namespace RecipeSlicer
         /// Фон меню: покрыть экран с сохранением пропорций, прижать к верху. Те же масштаб (+4%) и сдвиг
         /// вверх (1% высоты), что у фона игры в GameManager, — при переходе меню → игра ничего не сдвигается.
         /// </summary>
+        /// <summary>Материал текучего фона меню или null, если шейдера нет или видеокарта его не поддерживает.</summary>
+        static Material SwirlMaterial()
+        {
+            var shader = Resources.Load<Shader>("Shaders/MenuSwirl");
+            if (shader == null || !shader.isSupported) return null;
+            return new Material(shader) { name = "MenuSwirl" };
+        }
+
         void LayoutMenuBackground()
         {
             var size = _root.rect.size;

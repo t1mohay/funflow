@@ -42,3 +42,7 @@ Thumbs.db
 
 # Выход генераторов звука (готовые файлы копируются в Assets/Resources/Audio)
 Tools/AudioGen/out/
+
+# Python
+__pycache__/
+*.pyc
