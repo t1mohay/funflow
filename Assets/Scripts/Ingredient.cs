@@ -116,8 +116,11 @@ namespace RecipeSlicer
                 _game.OnIngredientLost(this);
         }
 
-        /// <summary>Разрезать вдоль направления свайпа. Объект уничтожается, вместо него летят половинки.</summary>
-        public void Slice(Vector2 direction)
+        /// <summary>
+        /// Разрезать вдоль направления свайпа. Объект уничтожается, вместо него половинки,
+        /// которые летят в ёмкость блюда (если она есть).
+        /// </summary>
+        public void Slice(Vector2 direction, Container container, SliceResult result)
         {
             IsSliced = true;
 
@@ -125,13 +128,13 @@ namespace RecipeSlicer
             Vector2 localDirection = Quaternion.Inverse(_body.rotation) * direction;
             var normal = new Vector2(-direction.y, direction.x);
             var source = _bodyRenderer.sprite;
-            SpawnHalf(Art.CutHalf(source, localDirection, true), normal, direction);
-            SpawnHalf(Art.CutHalf(source, localDirection, false), -normal, direction);
+            SpawnHalf(Art.CutHalf(source, localDirection, true), normal, direction, container, result);
+            SpawnHalf(Art.CutHalf(source, localDirection, false), -normal, direction, container, result);
 
             Destroy(gameObject);
         }
 
-        void SpawnHalf(Sprite sprite, Vector2 side, Vector2 direction)
+        void SpawnHalf(Sprite sprite, Vector2 side, Vector2 direction, Container container, SliceResult result)
         {
             var go = new GameObject("Half");
             go.transform.SetPositionAndRotation(_body.position, _body.rotation);
@@ -143,7 +146,7 @@ namespace RecipeSlicer
 
             var velocity = _velocity * 0.4f + side * Random.Range(2f, 3.2f) + direction * 1.5f;
             go.AddComponent<Half>().Init(velocity, _gravity, _speed, Random.Range(-360f, 360f),
-                -_game.ViewHalfHeight - 2f);
+                -_game.ViewHalfHeight - 2f, container, result, Def.Color);
         }
     }
 }
