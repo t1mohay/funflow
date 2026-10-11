@@ -50,7 +50,6 @@ namespace RecipeSlicer
         void Awake()
         {
             GameSettings.Load();
-            SetupCursor();
             SetupCamera();
 
             _background = new GameObject("Background").AddComponent<SpriteRenderer>();
@@ -69,21 +68,11 @@ namespace RecipeSlicer
             AddChild<SwipeInput>("Swipe").Init(this, _cam);
             _ui = AddChild<GameUI>("UI");
             _ui.Init(this, _cam);
+            AddChild<KnifeCursor>("Cursor");
             _spawner = new Spawner(this);
 
             UpdateLayout();
             GoToMenu();
-        }
-
-        /// <summary>Кончик лезвия в картинке курсора (пиксели от левого верхнего угла).</summary>
-        static readonly Vector2 CursorHotspot = new Vector2(3f, 1f);
-
-        /// <summary>Курсор — нож под углом, как стрелка Windows (Resources/Cursor/knife_cursor).</summary>
-        static void SetupCursor()
-        {
-            var cursor = Resources.Load<Texture2D>("Cursor/knife_cursor");
-            // Cursor.SetCursor требует читаемую текстуру (Read/Write в импорте) — иначе остаётся обычный курсор.
-            if (cursor != null && cursor.isReadable) Cursor.SetCursor(cursor, CursorHotspot, CursorMode.Auto);
         }
 
         void SetupCamera()
