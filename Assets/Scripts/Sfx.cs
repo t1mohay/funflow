@@ -20,7 +20,7 @@ namespace RecipeSlicer
     ///  2. Вылет еды                PlayLaunch()           Launch/launch_NN
     ///  3. Счётчик очков            PlayGood(fill)         Counter/counter_step_01..10
     ///  4. Промах (еда упала)       PlayMiss()             Miss/miss_NN
-    ///     Взмах (пока зажата мышь) SetSwipe(held, speed)  Swipe/swipe_loop (петля); без неё — PlaySwoosh(): Swipe/swipe_empty_NN
+    ///     Взмах (пока зажата мышь) SetSwipe(held, speed)  Swipe/swipe_loop (петля); без неё — PlaySwoosh(): Swipe/swipe_empty_NN (лежат в Reserve/Audio/Swipe)
     ///     Перебор «уже хватит»     PlayOverflow()         Overflow/overflow_NN (пока — Miss)
     ///  5. Ошибка (лишний ингр.)    PlayBad()              Error/error_NN (пока — заглушка)
     ///  6. Выполнение задания       PlayComplete()         Task/task_complete_full
@@ -310,8 +310,6 @@ namespace RecipeSlicer
             PlayCue(_timerEnd != null ? _timerEnd : _lose, _timerEnd != null ? 0.85f : 0.45f, 2.2f);
         }
 
-        public void PlayLose() => Play(_lose, 0.45f, 0f);
-
         // ───────────────────────── 10. Отсчёт перед раундом ─────────────────────────
 
         public void PlayCountdownTick()
@@ -331,10 +329,6 @@ namespace RecipeSlicer
             _cueSource.PlayOneShot(clip, volume * GameSettings.Effects);
             _duckUntil = Mathf.Max(_duckUntil, Time.unscaledTime + duck);
         }
-
-        // Старые имена оставлены для совместимости.
-        public void PlayTick() => PlayCountdownTick();
-        public void PlayGo() => PlayCountdownGo();
 
         // ───────────────────────── Интерфейс ─────────────────────────
 
@@ -377,8 +371,6 @@ namespace RecipeSlicer
             _musicA.Play();
             if (_musicPositions.TryGetValue(clip, out float position) && position < clip.length) _musicA.time = position;
         }
-
-        public void StopMusic() => PlayMusic(MusicTrack.None);
 
         void Update()
         {

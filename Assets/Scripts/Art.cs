@@ -9,6 +9,7 @@ namespace RecipeSlicer
         static Sprite _circle;
         static Sprite _roundedRect;
         static Sprite _gradient;
+        static Sprite _gloss;
         static Font _font;
         static Material _lineMaterial;
         static readonly Dictionary<string, Sprite> Sprites = new Dictionary<string, Sprite>();
@@ -20,6 +21,7 @@ namespace RecipeSlicer
             _circle = null;
             _roundedRect = null;
             _gradient = null;
+            _gloss = null;
             _font = null;
             _lineMaterial = null;
             Sprites.Clear();
@@ -194,6 +196,39 @@ namespace RecipeSlicer
             float border = radius + 2;
             return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0,
                 SpriteMeshType.FullRect, new Vector4(border, border, border, border));
+        }
+
+        /// <summary>
+        /// Мягкий блик для кнопок: белое пятно, ярче всего чуть ниже верхнего края и плавно гаснущее
+        /// вниз и к бокам — без резких краёв и углов. Растягивается картинкой типа Simple.
+        /// </summary>
+        public static Sprite Gloss
+        {
+            get
+            {
+                if (_gloss == null) _gloss = MakeGloss(128, 64);
+                return _gloss;
+            }
+        }
+
+        static Sprite MakeGloss(int width, int height)
+        {
+            var tex = NewTexture(width, height, "Gloss");
+            var pixels = new Color32[width * height];
+            for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+            {
+                float u = Mathf.Abs((x + 0.5f) / width - 0.5f) * 2f; // 0 в центре, 1 у боков
+                float v = 1f - (y + 0.5f) / height;                 // 0 сверху, 1 снизу
+                float sides = 1f - Mathf.SmoothStep(0.55f, 1f, u);
+                float top = Mathf.SmoothStep(0f, 0.18f, v);
+                float bottom = 1f - Mathf.SmoothStep(0.2f, 1f, v);
+                float a = sides * top * bottom;
+                pixels[y * width + x] = new Color32(255, 255, 255, (byte)(a * 255));
+            }
+            tex.SetPixels32(pixels);
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 100f);
         }
 
         static Texture2D NewTexture(int width, int height, string name)

@@ -29,7 +29,7 @@
 | 3 | Счётчик очков | `PlayGood(fill)` | разрезан нужный ингредиент | `Counter/counter_step_01..10.wav` | ≈0,9 с | 0.45 |
 | 4 | Промах | `PlayMiss()` | `GameManager.OnIngredientLost` — упал нужный ингредиент, которого ещё не хватает | `Miss/miss_01..03.wav` | ≈0,7 с | 0.40 |
 | 4 | Взмах (пока зажата мышь) | `SetSwipe(held, speed)` | `SwipeInput` — каждый кадр во время раунда | `Swipe/swipe_loop.wav` (петля 6 с, ветер в ля миноре) | пока зажата | до 0.18 |
-| 4 | Взмах — запасной вариант | `PlaySwoosh()` | только если нет `swipe_loop` — быстрый взмах (не чаще раза в 0,25 с) | `Swipe/swipe_empty_01..03.wav` | ≈0,35 с | 0.35 |
+| 4 | Взмах — запасной вариант | `PlaySwoosh()` | только если нет `swipe_loop` — быстрый взмах (не чаще раза в 0,25 с) | `Swipe/swipe_empty_01..03.wav` (сейчас в `Reserve/Audio/Swipe`; без них — синтезированный взмах) | ≈0,35 с | 0.35 |
 | 4 | Перебор «Уже хватит!» | `PlayOverflow()` | разрезан нужный, но его уже хватает | пока `Miss/…` (можно положить `Overflow/overflow_01..03`) | — | 0.50 |
 | 5 | Ошибка | `PlayBad()` | разрезан лишний ингредиент (−3) | **пока заглушка**, ждёт `Error/error_01..03` | — | 0.55 |
 | 6 | Выполнение задания | `PlayComplete()` | блюдо собрано + экран результата (2+ звезды) | `Task/task_complete_full.wav` | ≈3,2 с | 0.60 |
@@ -100,7 +100,7 @@
 
 ## Изменения в коде
 
-- `Assets/Scripts/Sfx.cs` — загрузка клипов из Resources, функция на каждый звук, `enum MusicTrack` и `PlayMusic`/`StopMusic`
+- `Assets/Scripts/Sfx.cs` — загрузка клипов из Resources, функция на каждый звук, `enum MusicTrack` и `PlayMusic`
   с плавной сменой треков. Процедурные заглушки сохранены.
 - `Assets/Scripts/GameManager.cs`:
   - `PlayChop()` → `PlayChop(def.Id)` — звук по типу еды;
@@ -110,7 +110,7 @@
   - комбо: `PlayGo()` → `PlayCombo()`;
   - `OnIngredientLost` — новый вызов `PlayMiss()` для упавшего нужного ингредиента;
   - музыка: `PlayMusic(MusicTrack.Lobby)` в меню, `PlayMusic(MusicTrack.Round)` в начале раунда.
-- Старые имена `PlayTick()`, `PlayGo()`, `PlayLose()` оставлены, чтобы не ломать другой код.
+- Старые имена `PlayTick()`, `PlayGo()`, `PlayLose()` удалены — их больше никто не вызывал.
 
 ## Как заменить или добавить звук
 

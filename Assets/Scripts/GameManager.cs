@@ -163,12 +163,6 @@ namespace RecipeSlicer
             Sfx.PlayMusic(MusicTrack.Round);
         }
 
-        public void TogglePause()
-        {
-            if (IsPaused) Resume();
-            else Pause();
-        }
-
         void ClearPause()
         {
             IsPaused = false;
@@ -195,10 +189,10 @@ namespace RecipeSlicer
 
             if (IsPaused)
             {
-                // Esc сначала закрывает подменю (горячие клавиши), потом снимает паузу.
+                // Esc сначала закрывает настройки (возврат в паузу), потом снимает паузу.
                 if (InputUtil.BackPressed())
                 {
-                    if (!_ui.CloseHotkeys()) Resume();
+                    if (!_ui.CloseSettings()) Resume();
                 }
                 else if (InputUtil.RestartPressed()) Restart();
                 return;

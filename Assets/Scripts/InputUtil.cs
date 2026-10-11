@@ -127,6 +127,19 @@ namespace RecipeSlicer
             return false;
         }
 
+        /// <summary>Клавиши «+» и «−» (основные и на цифровом блоке): +1, −1 или 0, если не нажаты.</summary>
+        public static int PlusMinusPressed()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (Down(Key.Equals) || Down(Key.NumpadPlus)) return 1;
+            if (Down(Key.Minus) || Down(Key.NumpadMinus)) return -1;
+#else
+            if (Down(KeyCode.Equals) || Down(KeyCode.Plus) || Down(KeyCode.KeypadPlus)) return 1;
+            if (Down(KeyCode.Minus) || Down(KeyCode.KeypadMinus)) return -1;
+#endif
+            return 0;
+        }
+
         /// <summary>Название клавиши для интерфейса.</summary>
         public static string KeyName(HotkeyAction action)
         {

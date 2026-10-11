@@ -1,7 +1,7 @@
 # Фон-кухня
 
-`gen_kitchen.py` генерирует `kitchen.svg` (плоский векторный стиль, 1920×1080).
-PNG для игры лежит в `Assets/Resources/Kitchen/background.png`.
+`background.jpg` — исходник фона от команды (нарисованная кухня).
+PNG для игры лежит в `Assets/Resources/Kitchen/background.png` (1280×853); его же использует меню,
+если шейдер `MenuSwirl` не поддерживается.
 
-Пересобрать: `python gen_kitchen.py kitchen.svg`, затем сконвертировать SVG в PNG 1920×1080
-(Inkscape, браузер или PyMuPDF) и заменить `background.png`.
+Заменить фон: сохранить новую картинку как `Assets/Resources/Kitchen/background.png`.
