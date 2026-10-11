@@ -87,11 +87,11 @@ namespace RecipeSlicer
         public static readonly IngredientDef Cucumber = I("cucumber", "Огурец", "#3FA34D");
         public static readonly IngredientDef Lettuce = I("lettuce", "Салат", "#9BE564");
         public static readonly IngredientDef Onion = I("onion", "Лук", "#EBD9B4");
-        public static readonly IngredientDef Pepper = I("pepper", "Перец", "#4CAF50");
+        public static readonly IngredientDef Pepper = I("pepper", "Перец", "#E53935");
         public static readonly IngredientDef Cheese = I("cheese", "Сыр", "#FFD166");
         public static readonly IngredientDef Mushroom = I("mushroom", "Грибы", "#B08968");
         public static readonly IngredientDef Bacon = I("bacon", "Бекон", "#D35D6E");
-        public static readonly IngredientDef Olive = I("olive", "Оливки", "#6B8E23");
+        public static readonly IngredientDef Olive = I("olive", "Оливки", "#3A2F3A");
         public static readonly IngredientDef Shrimp = I("shrimp", "Креветка", "#FF8C69");
         public static readonly IngredientDef Chili = I("chili", "Чили", "#C1121F");
         public static readonly IngredientDef Lime = I("lime", "Лайм", "#A7C957");

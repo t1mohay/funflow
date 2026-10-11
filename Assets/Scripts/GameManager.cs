@@ -20,6 +20,8 @@ namespace RecipeSlicer
         const float ComboWindow = 0.25f;
         static readonly Color BackgroundTop = new Color32(0x4A, 0x33, 0x26, 0xFF);
         static readonly Color BackgroundBottom = new Color32(0x1E, 0x14, 0x0F, 0xFF);
+        /// <summary>Затемнение картинки-фона: меньше — темнее, ингредиенты контрастнее.</summary>
+        static readonly Color BackgroundTint = new Color(0.58f, 0.6f, 0.68f);
 
         public Sfx Sfx { get; private set; }
         public Rect PlayArea { get; private set; }
@@ -53,6 +55,8 @@ namespace RecipeSlicer
             var kitchen = Art.LoadSprite("Kitchen/background");
             _backgroundIsPicture = kitchen != null;
             _background.sprite = kitchen != null ? kitchen : Art.Gradient(BackgroundBottom, BackgroundTop);
+            // Фон приглушаем, чтобы яркие ингредиенты на нём выделялись.
+            if (kitchen != null) _background.color = BackgroundTint;
             _background.sortingOrder = -100;
 
             Sfx = AddChild<Sfx>("Sfx");
