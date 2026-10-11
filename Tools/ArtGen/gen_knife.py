@@ -103,3 +103,25 @@ out = img.resize((W, H), Image.LANCZOS)
 dst = os.path.join(os.path.dirname(__file__), "..", "..", "Assets", "Resources", "UI", "knife.png")
 out.save(os.path.normpath(dst))
 print("saved", os.path.normpath(dst), out.size)
+
+# ── курсор: тот же нож остриём вверх-влево, наклон как у стрелки Windows
+CURSOR = 64
+TILT = 32  # градусов от вертикали
+cur = img.rotate(180 + TILT, resample=Image.BICUBIC, expand=True)
+cur = cur.crop(cur.getbbox())
+scale = (CURSOR - 4) / max(cur.size)
+cur = cur.resize((max(1, round(cur.width * scale)), max(1, round(cur.height * scale))), Image.LANCZOS)
+canvas = Image.new("RGBA", (CURSOR, CURSOR), (0, 0, 0, 0))
+# мягкая тень, как у системного курсора
+shadow = Image.new("RGBA", cur.size, (0, 0, 0, 0)); shadow.putalpha(cur.split()[3].point(lambda a: int(a * 0.35)))
+shadow = shadow.filter(ImageFilter.GaussianBlur(1.2))
+canvas.alpha_composite(shadow, (3, 3))
+canvas.alpha_composite(cur, (1, 1))
+# точка клика — кончик лезвия: самый верхний-левый непрозрачный пиксель
+a = np.array(canvas.split()[3])
+ys, xs = np.nonzero(a > 160)
+k = int(np.argmin(xs + ys)); hot = (int(xs[k]), int(ys[k]))
+cdst = os.path.join(os.path.dirname(__file__), "..", "..", "Assets", "Resources", "Cursor", "knife_cursor.png")
+os.makedirs(os.path.dirname(cdst), exist_ok=True)
+canvas.save(os.path.normpath(cdst))
+print("cursor", os.path.normpath(cdst), canvas.size, "hotspot", hot)
