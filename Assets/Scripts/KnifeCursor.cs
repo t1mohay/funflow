@@ -14,7 +14,7 @@ namespace RecipeSlicer
     public sealed class KnifeCursor : MonoBehaviour
     {
         /// <summary>Длина ножа в единицах холста 1920×1080 (ингредиент — около 170).</summary>
-        const float Length = 190f;
+        const float Length = 142.5f;
         /// <summary>Наклон от вертикали, как у стрелки Windows: остриё смотрит вверх-влево.</summary>
         const float Tilt = 32f;
         /// <summary>Кончик лезвия в картинке knife.png (доли ширины/высоты, от левого нижнего угла).</summary>
