@@ -82,7 +82,8 @@ namespace RecipeSlicer
         static void SetupCursor()
         {
             var cursor = Resources.Load<Texture2D>("Cursor/knife_cursor");
-            if (cursor != null) Cursor.SetCursor(cursor, CursorHotspot, CursorMode.Auto);
+            // Cursor.SetCursor требует читаемую текстуру (Read/Write в импорте) — иначе остаётся обычный курсор.
+            if (cursor != null && cursor.isReadable) Cursor.SetCursor(cursor, CursorHotspot, CursorMode.Auto);
         }
 
         void SetupCamera()
