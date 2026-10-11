@@ -1,23 +1,84 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace RecipeSlicer
 {
     /// <summary>
-    /// Процедурные звуки-заглушки: генерируются в коде, файлов не нужно.
-    /// Позже можно заменить на AudioClip из Resources, интерфейс останется тем же.
+    /// Все звуки и музыка игры. Клипы берутся из Assets/Resources/Audio/...
+    /// Если файла нет — играет процедурная заглушка, поэтому игра работает и без ассетов.
+    ///
+    /// Список звуков (функция → папка Resources/Audio):
+    ///  1. Разрез еды по типу       PlayChop(id)           Slice/slice_{juicy|crunchy|soft|hard}_NN
+    ///  2. Вылет еды                PlayLaunch()           Launch/launch_NN
+    ///  3. Счётчик очков            PlayGood(fill)         Counter/counter_step_01..10
+    ///  4. Промах (еда упала)       PlayMiss()             Miss/miss_NN
+    ///     Взмах по пустоте         PlaySwoosh()           Swipe/swipe_empty_NN
+    ///     Перебор «уже хватит»     PlayOverflow()         Overflow/overflow_NN (пока — Miss)
+    ///  5. Ошибка (лишний ингр.)    PlayBad()              Error/error_NN (пока — заглушка)
+    ///  6. Выполнение задания       PlayComplete()         Task/task_complete_full
+    ///     Комбо                    PlayCombo()            Task/task_complete_short
+    ///  7. Таймер 5 секунд          PlayTimerTick(sec)     Timer/timer_tick_5..1
+    ///     Время вышло              PlayTimeUp()           Timer/timer_end
+    ///  8. Музыка в игре            PlayMusic(MusicTrack.Round)       Music/game_loop (пока — лобби)
+    ///  9. Музыка в лобби           PlayMusic(MusicTrack.Lobby)       Music/lobby_loop
+    /// 10. Отсчёт 3 секунды         PlayCountdownTick()    Countdown/countdown_tick
+    ///                              PlayCountdownGo()      Countdown/countdown_go
+    ///     Клик в меню              PlayClick()            UI/click (пока — заглушка)
     /// </summary>
+    /// <summary>Фоновая музыка: лобби (меню) или раунд.</summary>
+    public enum MusicTrack
+    {
+        None,
+        Lobby,
+        Round,
+    }
+
     public sealed class Sfx : MonoBehaviour
     {
         const int Rate = 44100;
         const float TwoPi = Mathf.PI * 2f;
+        const float MusicVolume = 0.45f;
+        const float MusicFade = 1.2f;
+        const string Root = "Audio/";
+
+        /// <summary>Тип звука разреза по Id ингредиента. Неизвестные — «soft».</summary>
+        static readonly Dictionary<string, string> SliceKind = new Dictionary<string, string>
+        {
+            // сочное
+            { "tomato", "juicy" }, { "lime", "juicy" }, { "pineapple", "juicy" }, { "strawberry", "juicy" },
+            { "olive", "juicy" }, { "milk", "juicy" },
+            // хрустящее
+            { "cucumber", "crunchy" }, { "lettuce", "crunchy" }, { "onion", "crunchy" }, { "pepper", "crunchy" },
+            { "chili", "crunchy" }, { "lemongrass", "crunchy" }, { "carrot", "crunchy" }, { "apple", "crunchy" },
+            { "cookie", "crunchy" },
+            // мягкое
+            { "cheese", "soft" }, { "mushroom", "soft" }, { "bacon", "soft" }, { "shrimp", "soft" },
+            { "donut", "soft" }, { "banana", "soft" }, { "fish", "soft" }, { "sock", "soft" },
+            { "icecream", "soft" }, { "bread", "soft" },
+            // твёрдое
+            { "coconut", "hard" }, { "galangal", "hard" }, { "chocolate", "hard" }, { "candy", "hard" },
+            { "potato", "hard" },
+        };
 
         AudioSource[] _sources;
         int _next;
+
+        // процедурные заглушки
         AudioClip _swoosh, _chop, _good, _overflow, _bad, _tick, _go, _complete, _lose, _click, _launch;
+
+        // клипы из Resources
+        readonly Dictionary<string, AudioClip[]> _slice = new Dictionary<string, AudioClip[]>();
+        AudioClip[] _launchClips, _swipeClips, _missClips, _overflowClips, _errorClips, _counterSteps, _clickClips;
+        AudioClip[] _timerTicks; // индекс = секунд осталось (1..5)
+        AudioClip _timerEnd, _countdownTick, _countdownGo, _taskFull, _taskShort, _lobbyMusic, _roundMusic;
+
+        // музыка: два источника для плавной смены треков
+        AudioSource _musicA, _musicB;
+        MusicTrack _music = MusicTrack.None;
 
         void Awake()
         {
-            _sources = new AudioSource[12];
+            _sources = new AudioSource[16];
             for (int i = 0; i < _sources.Length; i++)
             {
                 var source = gameObject.AddComponent<AudioSource>();
@@ -25,6 +86,8 @@ namespace RecipeSlicer
                 source.spatialBlend = 0f;
                 _sources[i] = source;
             }
+            _musicA = NewMusicSource();
+            _musicB = NewMusicSource();
 
             _swoosh = MakeSwoosh();
             _chop = MakeChop();
@@ -37,20 +100,222 @@ namespace RecipeSlicer
             _lose = MakeArpeggio("lose", new[] { 392f, 330f, 262f }, 0.2f);
             _click = MakeTone("click", 0.035f, 1500f, 80f);
             _launch = MakeSweep("launch", 0.09f, 180f, 420f, 25f);
+
+            LoadClips();
         }
 
-        public void PlaySwoosh() => Play(_swoosh, 0.3f, 0.15f);
-        public void PlayChop() => Play(_chop, 0.55f, 0.12f);
-        /// <param name="fill">0..1 — насколько заполнен ингредиент, тон растёт к концу.</param>
-        public void PlayGood(float fill) => Play(_good, 0.4f, 0.02f, 1f + 0.3f * fill);
-        public void PlayOverflow() => Play(_overflow, 0.5f, 0.05f);
-        public void PlayBad() => Play(_bad, 0.45f, 0.03f);
-        public void PlayTick() => Play(_tick, 0.4f, 0f);
-        public void PlayGo() => Play(_go, 0.4f, 0f);
-        public void PlayComplete() => Play(_complete, 0.45f, 0f);
+        void LoadClips()
+        {
+            foreach (var kind in new[] { "juicy", "crunchy", "soft", "hard" })
+                _slice[kind] = LoadSet("Slice/slice_" + kind + "_", 3);
+            _launchClips = LoadSet("Launch/launch_", 3);
+            _swipeClips = LoadSet("Swipe/swipe_empty_", 3);
+            _missClips = LoadSet("Miss/miss_", 3);
+            _overflowClips = LoadSet("Overflow/overflow_", 3);
+            _errorClips = LoadSet("Error/error_", 3);
+            _clickClips = LoadSet("UI/click_", 3);
+            _counterSteps = LoadSet("Counter/counter_step_", 10, keepGaps: true);
+
+            _timerTicks = new AudioClip[6];
+            for (int s = 1; s <= 5; s++) _timerTicks[s] = Load("Timer/timer_tick_" + s);
+            _timerEnd = Load("Timer/timer_end");
+            _countdownTick = Load("Countdown/countdown_tick");
+            _countdownGo = Load("Countdown/countdown_go");
+            _taskFull = Load("Task/task_complete_full");
+            _taskShort = Load("Task/task_complete_short");
+            _lobbyMusic = Load("Music/lobby_loop");
+            _roundMusic = Load("Music/game_loop");
+        }
+
+        static AudioClip Load(string path) => Resources.Load<AudioClip>(Root + path);
+
+        /// <summary>Загружает prefix01..prefixNN. Без keepGaps отсутствующие файлы пропускаются.</summary>
+        static AudioClip[] LoadSet(string prefix, int count, bool keepGaps = false)
+        {
+            var list = new List<AudioClip>();
+            for (int i = 1; i <= count; i++)
+            {
+                var clip = Load(prefix + i.ToString("00"));
+                if (clip != null || keepGaps) list.Add(clip);
+            }
+            return list.ToArray();
+        }
+
+        // ───────────────────────── 1. Разрез ─────────────────────────
+
+        /// <summary>Разрез ингредиента: звук зависит от типа еды (сочная, хрустящая, мягкая, твёрдая).</summary>
+        public void PlayChop(string ingredientId)
+        {
+            string kind = ingredientId != null && SliceKind.TryGetValue(ingredientId, out var k) ? k : "soft";
+            if (!PlayRandom(_slice[kind], 0.7f)) Play(_chop, 0.55f, 0.12f);
+        }
+
+        public void PlayChop() => PlayChop(null);
+
+        // ───────────────────────── 2. Вылет ─────────────────────────
+
+        public void PlayLaunch()
+        {
+            if (!PlayRandom(_launchClips, 0.35f)) Play(_launch, 0.12f, 0.2f);
+        }
+
+        // ───────────────────────── 3. Счётчик ─────────────────────────
+
+        /// <param name="fill">0..1 — насколько собран ингредиент; нота идёт вверх по гамме.</param>
+        public void PlayGood(float fill)
+        {
+            int step = Mathf.Clamp(Mathf.RoundToInt(Mathf.Clamp01(fill) * 9f), 0, 9);
+            if (step < _counterSteps.Length && _counterSteps[step] != null) Play(_counterSteps[step], 0.45f, 0f);
+            else Play(_good, 0.4f, 0.02f, 1f + 0.3f * fill);
+        }
+
+        // ───────────────────────── 4. Промах / взмах / перебор ─────────────────────────
+
+        /// <summary>Нужный ингредиент упал, его не успели разрезать.</summary>
+        public void PlayMiss()
+        {
+            if (!PlayRandom(_missClips, 0.4f)) Play(_lose, 0.25f, 0f, 1.3f);
+        }
+
+        /// <summary>Быстрый взмах ножом (в том числе по пустоте).</summary>
+        public void PlaySwoosh()
+        {
+            if (!PlayRandom(_swipeClips, 0.35f)) Play(_swoosh, 0.3f, 0.15f);
+        }
+
+        /// <summary>Нужного уже хватает — перебор.</summary>
+        public void PlayOverflow()
+        {
+            if (PlayRandom(_overflowClips, 0.5f)) return;
+            if (!PlayRandom(_missClips, 0.5f)) Play(_overflow, 0.5f, 0.05f);
+        }
+
+        // ───────────────────────── 5. Ошибка ─────────────────────────
+
+        /// <summary>Разрезан лишний ингредиент.</summary>
+        public void PlayBad()
+        {
+            if (!PlayRandom(_errorClips, 0.55f)) Play(_bad, 0.45f, 0.03f);
+        }
+
+        // ───────────────────────── 6. Задание / комбо ─────────────────────────
+
+        /// <summary>Блюдо собрано.</summary>
+        public void PlayComplete()
+        {
+            if (_taskFull != null) Play(_taskFull, 0.6f, 0f);
+            else Play(_complete, 0.45f, 0f);
+        }
+
+        /// <summary>Комбо: 3+ нужных одним движением.</summary>
+        public void PlayCombo()
+        {
+            if (_taskShort != null) Play(_taskShort, 0.5f, 0f);
+            else Play(_go, 0.4f, 0f);
+        }
+
+        // ───────────────────────── 7. Таймер конца раунда ─────────────────────────
+
+        /// <param name="secondsLeft">5..1 — каждая секунда звучит на ступень выше.</param>
+        public void PlayTimerTick(int secondsLeft)
+        {
+            var clip = secondsLeft >= 1 && secondsLeft <= 5 ? _timerTicks[secondsLeft] : null;
+            if (clip != null) Play(clip, 0.55f, 0f);
+            else Play(_tick, 0.4f, 0f);
+        }
+
+        /// <summary>Время раунда вышло.</summary>
+        public void PlayTimeUp()
+        {
+            if (_timerEnd != null) Play(_timerEnd, 0.6f, 0f);
+            else Play(_lose, 0.45f, 0f);
+        }
+
         public void PlayLose() => Play(_lose, 0.45f, 0f);
-        public void PlayClick() => Play(_click, 0.35f, 0.05f);
-        public void PlayLaunch() => Play(_launch, 0.12f, 0.2f);
+
+        // ───────────────────────── 10. Отсчёт перед раундом ─────────────────────────
+
+        public void PlayCountdownTick()
+        {
+            if (_countdownTick != null) Play(_countdownTick, 0.55f, 0f);
+            else Play(_tick, 0.4f, 0f);
+        }
+
+        public void PlayCountdownGo()
+        {
+            if (_countdownGo != null) Play(_countdownGo, 0.65f, 0f);
+            else Play(_go, 0.4f, 0f);
+        }
+
+        // Старые имена оставлены для совместимости.
+        public void PlayTick() => PlayCountdownTick();
+        public void PlayGo() => PlayCountdownGo();
+
+        // ───────────────────────── Интерфейс ─────────────────────────
+
+        public void PlayClick()
+        {
+            if (!PlayRandom(_clickClips, 0.35f)) Play(_click, 0.35f, 0.05f);
+        }
+
+        // ───────────────────────── 8–9. Музыка ─────────────────────────
+
+        /// <summary>Плавно переключает фоновую музыку. Без файла game_loop в раунде играет лобби.</summary>
+        public void PlayMusic(MusicTrack music)
+        {
+            if (music == _music) return;
+            _music = music;
+
+            AudioClip clip = null;
+            if (music == MusicTrack.Lobby) clip = _lobbyMusic;
+            else if (music == MusicTrack.Round) clip = _roundMusic != null ? _roundMusic : _lobbyMusic;
+
+            // Тот же трек уже играет (раунд без своей музыки) — не перезапускаем.
+            if (clip != null && _musicA.clip == clip && _musicA.isPlaying) return;
+
+            // A — текущий, B — затухающий
+            (_musicA, _musicB) = (_musicB, _musicA);
+            _musicA.clip = clip;
+            _musicA.volume = 0f;
+            if (clip != null) _musicA.Play();
+            else _musicA.Stop();
+        }
+
+        public void StopMusic() => PlayMusic(MusicTrack.None);
+
+        void Update()
+        {
+            float step = Time.unscaledDeltaTime * MusicVolume / MusicFade;
+            if (_musicA.clip != null) _musicA.volume = Mathf.MoveTowards(_musicA.volume, MusicVolume, step);
+            if (_musicB.isPlaying)
+            {
+                _musicB.volume = Mathf.MoveTowards(_musicB.volume, 0f, step);
+                if (_musicB.volume <= 0f) _musicB.Stop();
+            }
+        }
+
+        AudioSource NewMusicSource()
+        {
+            var source = gameObject.AddComponent<AudioSource>();
+            source.playOnAwake = false;
+            source.loop = true;
+            source.spatialBlend = 0f;
+            source.volume = 0f;
+            source.priority = 0;
+            return source;
+        }
+
+        // ───────────────────────── Воспроизведение ─────────────────────────
+
+        bool PlayRandom(AudioClip[] clips, float volume)
+        {
+            if (clips == null || clips.Length == 0) return false;
+            var clip = clips[Random.Range(0, clips.Length)];
+            if (clip == null) return false;
+            // Без сдвига высоты: звуки настроены в тональность музыки (ля минор).
+            Play(clip, volume, 0f);
+            return true;
+        }
 
         void Play(AudioClip clip, float volume, float pitchJitter, float pitch = 1f)
         {

@@ -104,6 +104,7 @@ namespace RecipeSlicer
             _ui.ShowRound(_round);
             _ui.ShowBanner("Режь только то, что в списке «НУЖНО»!", GameUI.AccentColor, 2.6f);
             Sfx.PlayClick();
+            Sfx.PlayMusic(MusicTrack.Round);
         }
 
         public void Restart()
@@ -126,6 +127,7 @@ namespace RecipeSlicer
             ClearIngredients();
             _state = State.Menu;
             _ui.ShowMenu();
+            Sfx.PlayMusic(MusicTrack.Lobby);
         }
 
         void Update()
@@ -188,12 +190,12 @@ namespace RecipeSlicer
             _ui.SetCountdown(CountdownSteps[_countdownStep]);
             if (_countdownStep < CountdownSteps.Length - 1)
             {
-                Sfx.PlayTick();
+                Sfx.PlayCountdownTick();
                 _stateTimer = 0.65f;
             }
             else
             {
-                Sfx.PlayGo();
+                Sfx.PlayCountdownGo();
                 _state = State.Playing;
             }
         }
@@ -208,14 +210,14 @@ namespace RecipeSlicer
             if (second <= 5 && second > 0 && second != _lastTickSecond)
             {
                 _lastTickSecond = second;
-                Sfx.PlayTick();
+                Sfx.PlayTimerTick(second);
             }
 
             // Не успел собрать рецепт за отведённое время — проигрыш.
             if (_round.TimeLeft <= 0f)
             {
                 _round.TimeLeft = 0f;
-                Sfx.PlayLose();
+                Sfx.PlayTimeUp();
                 FinishRound("Время вышло!", GameUI.BadColor);
             }
 
@@ -236,7 +238,7 @@ namespace RecipeSlicer
             if (size < RoundState.ComboMin) return;
 
             int bonus = _round.AddCombo(size);
-            Sfx.PlayGo();
+            Sfx.PlayCombo();
             _fx.Shake(0.1f, 0.12f);
             _ui.Floating(_comboPosition + Vector3.up * 1.2f, $"КОМБО ×{size}! +{bonus}", GameUI.AccentColor, 64);
             _ui.OnSliced(null, _round);
@@ -280,6 +282,10 @@ namespace RecipeSlicer
 
         public void OnIngredientLost(Ingredient ingredient)
         {
+            // Промах: упал ингредиент, которого рецепту ещё не хватает.
+            if (_state == State.Playing && !ingredient.IsSliced
+                && _round.Collected(ingredient.Def) < _recipe.NeededCount(ingredient.Def))
+                Sfx.PlayMiss();
             _active.Remove(ingredient);
             Destroy(ingredient.gameObject);
         }
@@ -317,7 +323,7 @@ namespace RecipeSlicer
             ingredient.Slice(direction);
 
             _fx.Burst(position, def.Color, result == SliceResult.Wrong ? 10 : 16);
-            Sfx.PlayChop();
+            Sfx.PlayChop(def.Id);
             Vector3 textPos = position + Vector2.up * 0.6f;
 
             switch (result)
