@@ -6,7 +6,7 @@ public sealed class SpriteImportSettings : AssetPostprocessor
     void OnPreprocessTexture()
     {
         bool icon = assetPath.Contains("/Resources/Ingredients/") || assetPath.Contains("/Resources/Dishes/");
-        bool background = assetPath.Contains("/Resources/Kitchen/");
+        bool background = assetPath.Contains("/Resources/Kitchen/") || assetPath.Contains("/Resources/Menu/");
         if (!icon && !background) return;
 
         var importer = (TextureImporter)assetImporter;

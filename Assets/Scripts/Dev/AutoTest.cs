@@ -27,6 +27,11 @@ namespace RecipeSlicer
             yield return null;
             yield return null;
             var game = FindAnyObjectByType<GameManager>();
+            game.ToDishSelect();
+            yield return new WaitForSecondsRealtime(0.5f);
+            Shot("01b_dishes");
+            yield return null;
+            yield return null;
             game.StartRound(Recipes.All[2]);
             yield return new WaitForSecondsRealtime(0.4f);
             Shot("02_countdown");

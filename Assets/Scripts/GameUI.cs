@@ -62,6 +62,9 @@ namespace RecipeSlicer
         GameObject _menu, _hud, _results, _pause;
         Image _brightness;
         GameObject _pauseButton;
+        GameObject _pauseGameButtons, _settingsBack;
+        Text _pauseTitle;
+        bool _settingsMode;
         Text _resolutionLabel, _windowModeLabel;
         readonly List<Vector2Int> _resolutions = new List<Vector2Int>();
         int _resolutionIndex;
@@ -111,13 +114,16 @@ namespace RecipeSlicer
 
         // ───────────────────────── Экраны ─────────────────────────
 
-        public void ShowMenu()
+        /// <param name="dishSelect">Сразу открыть выбор блюда (после раунда), иначе — главное меню.</param>
+        public void ShowMenu(bool dishSelect = false)
         {
             _menu.SetActive(true);
             _hud.SetActive(false);
             _results.SetActive(false);
             _banner.text = "";
             _countdown.text = "";
+            _creditsScreen.SetActive(false);
+            ShowDishSelect(dishSelect);
 
             var all = Recipes.All;
             for (int i = 0; i < all.Length; i++)
@@ -130,6 +136,10 @@ namespace RecipeSlicer
         public void ShowPause(bool visible)
         {
             if (_pause == null) return;
+            _settingsMode = false;
+            _pauseTitle.text = "ПАУЗА";
+            _pauseGameButtons.SetActive(true);
+            _settingsBack.SetActive(false);
             if (visible) RefreshGraphicsLabels();
             _pause.SetActive(visible);
         }
@@ -314,6 +324,7 @@ namespace RecipeSlicer
         void Update()
         {
             float dt = Time.unscaledDeltaTime;
+            LayoutCovers();
 
             foreach (var row in _rows)
             {
@@ -446,53 +457,172 @@ namespace RecipeSlicer
             return new Row { Def = def, Need = need, Wrong = wrong, Rect = rt, Background = background, Count = count };
         }
 
+        // ───────────────────────── Меню (картинки дизайнера + невидимые кнопки) ─────────────────────────
+
+        /// <summary>Затемнение картинок меню — как у фона игры.</summary>
+        static readonly Color MenuTint = new Color(0.6f, 0.6f, 0.64f);
+
+        // Кнопки в долях картинки 1280×853: (x0, y0, x1, y1), y — сверху вниз.
+        static readonly Rect StartButton = PixelRect(437, 193, 845, 290);
+        static readonly Rect SettingsButton = PixelRect(437, 310, 845, 405);
+        static readonly Rect CreditsButton = PixelRect(437, 425, 845, 518);
+        static readonly Rect BackButton = PixelRect(25, 500, 167, 552);
+        // Карточки блюд слева направо — в том же порядке, что Recipes.All (салат, пицца, том ям).
+        static readonly Rect[] DishCards = { PixelRect(186, 214, 479, 550), PixelRect(491, 214, 792, 550), PixelRect(805, 214, 1091, 550) };
+
+        /// <summary>Команда для экрана «Разработчики».</summary>
+        static readonly string[] Credits =
+        {
+            "Игра для FunFlow Game Jam × ТПУ",
+            "",
+            "Геймдизайн и код — команда «Режь по рецепту!»",
+            "Иллюстрации ингредиентов — дизайнер команды",
+            "Звук и музыка — звукорежиссёр команды",
+            "",
+            "Unity 6.6  •  картинки блюд: Noto Emoji (Apache 2.0)",
+        };
+
+        static Rect PixelRect(float x0, float y0, float x1, float y1)
+        {
+            const float w = 1280f, h = 853f;
+            return Rect.MinMaxRect(x0 / w, 1f - y1 / h, x1 / w, 1f - y0 / h);
+        }
+
+        GameObject _mainScreen, _dishScreen, _creditsScreen;
+        readonly List<RectTransform> _covers = new List<RectTransform>();
+        readonly List<float> _coverAspects = new List<float>();
+
+        /// <summary>Открыт выбор блюда (работают клавиши 1/2/3).</summary>
+        public bool DishSelectOpen => _menu.activeSelf && _dishScreen.activeSelf;
+
         void BuildMenu()
         {
             var menu = Fill(NewRect("Menu", _root));
             _menu = menu.gameObject;
-            AddImage(menu, new Color(0f, 0f, 0f, 0.25f), null);
+            AddImage(menu, Color.black, null).raycastTarget = true;
 
-            AddText(Place(NewRect("Title", menu), new Vector2(0.5f, 0.85f), Vector2.zero, new Vector2(1600f, 150f)),
-                "РЕЖЬ ПО РЕЦЕПТУ!", 104, AccentColor, TextAnchor.MiddleCenter, FontStyle.Bold);
-            AddText(Place(NewRect("Subtitle", menu), new Vector2(0.5f, 0.74f), Vector2.zero, new Vector2(1600f, 70f)),
-                "Выбери блюдо и режь только те ингредиенты, которые в него входят", 38, TextColor, TextAnchor.MiddleCenter, FontStyle.Normal);
+            // Главное меню
+            var main = BuildScreen(menu, "Main", "Menu/main");
+            _mainScreen = main.parent.gameObject;
+            HotSpot(main, StartButton, () => ShowDishSelect(true));
+            HotSpot(main, SettingsButton, ShowSettings);
+            HotSpot(main, CreditsButton, () => ShowCredits(true));
 
+            // Выбор блюда
+            var dishes = BuildScreen(menu, "Dishes", "Menu/dishes");
+            _dishScreen = dishes.parent.gameObject;
             var all = Recipes.All;
-            for (int i = 0; i < all.Length; i++)
+            for (int i = 0; i < all.Length && i < DishCards.Length; i++)
             {
                 var recipe = all[i];
-                float x = (i - (all.Length - 1) * 0.5f) * 500f;
-                var card = Place(NewRect(recipe.Title, menu), new Vector2(0.5f, 0.41f), new Vector2(x, 0f), new Vector2(450f, 530f));
-                MakeButton(card, CardColor, () => _game.StartRound(recipe));
-
-                var dish = Art.DishSprite(recipe);
-                if (dish != null)
-                {
-                    var dishIcon = AddImage(Place(NewRect("Dish", card), new Vector2(0.5f, 1f), new Vector2(0f, -82f), new Vector2(124f, 124f)), Color.white, null);
-                    dishIcon.sprite = dish;
-                    dishIcon.preserveAspect = true;
-                }
-
-                AddText(Top(card, 146f, 70f), recipe.Title, 56, TextColor, TextAnchor.MiddleCenter, FontStyle.Bold);
-                AddText(Top(card, 214f, 50f), new string('★', recipe.Stars) + new string('☆', 3 - recipe.Stars),
-                    40, AccentColor, TextAnchor.MiddleCenter, FontStyle.Normal);
-                AddText(Top(card, 268f, 80f), recipe.Description, 27, new Color(1f, 1f, 1f, 0.8f), TextAnchor.MiddleCenter, FontStyle.Normal);
-
-                int n = recipe.Needed.Length;
-                const float iconStep = 56f;
-                for (int j = 0; j < n; j++)
-                {
-                    var icon = Place(NewRect("Icon", card), new Vector2(0.5f, 1f), new Vector2((j - (n - 1) * 0.5f) * iconStep, -390f), new Vector2(52f, 52f));
-                    SetIcon(AddImage(icon, Color.white, null), recipe.Needed[j].Ingredient);
-                }
-
-                _bestLabels.Add(AddText(Top(card, 428f, 40f), "", 28, AccentColor, TextAnchor.MiddleCenter, FontStyle.Normal));
-                AddText(Top(card, 470f, 36f), $"клавиша {i + 1}", 22, new Color(1f, 1f, 1f, 0.45f), TextAnchor.MiddleCenter, FontStyle.Normal);
+                HotSpot(dishes, DishCards[i], () => _game.StartRound(recipe));
+                var card = DishCards[i];
+                var best = Stretch(NewRect("Best", dishes), new Vector2(card.xMin, card.yMin - 0.07f), new Vector2(card.xMax, card.yMin - 0.01f),
+                    Vector2.zero, Vector2.zero);
+                _bestLabels.Add(AddText(best, "", 30, TextColor, TextAnchor.MiddleCenter, FontStyle.Bold));
             }
+            HotSpot(dishes, BackButton, () => ShowDishSelect(false));
+            // Подсказка привязана к экрану, а не к картинке: низ картинки на широких экранах обрезается.
+            AddText(Stretch(NewRect("Help", dishes.parent), new Vector2(0.05f, 0.05f), new Vector2(0.95f, 0.12f), Vector2.zero, Vector2.zero),
+                "Зажми левую кнопку мыши и проведи по ингредиенту   •   1 / 2 / 3 — выбор блюда   •   Esc — пауза",
+                30, TextColor, TextAnchor.MiddleCenter, FontStyle.Normal);
 
-            AddText(Place(NewRect("Help", menu), new Vector2(0.5f, 0.09f), Vector2.zero, new Vector2(1700f, 60f)),
-                "Зажми левую кнопку мыши и проведи по ингредиенту   •   R — заново   •   Esc — пауза",
-                30, new Color(1f, 1f, 1f, 0.7f), TextAnchor.MiddleCenter, FontStyle.Normal);
+            BuildCredits(menu);
+        }
+
+        /// <summary>Экран-картинка, которая заполняет экран без искажений и прижата к верху. Возвращает её прямоугольник.</summary>
+        RectTransform BuildScreen(RectTransform parent, string name, string spritePath)
+        {
+            var screen = Fill(NewRect(name, parent));
+            var image = Place(NewRect("Image", screen), new Vector2(0.5f, 1f), Vector2.zero, new Vector2(1920f, 1280f));
+            image.pivot = new Vector2(0.5f, 1f);
+            var sprite = Art.LoadSprite(spritePath);
+            var img = AddImage(image, MenuTint, null);
+            img.sprite = sprite;
+            if (sprite == null) img.color = CardColor;
+            _covers.Add(image);
+            _coverAspects.Add(sprite != null ? sprite.rect.width / sprite.rect.height : 1280f / 853f);
+            return image;
+        }
+
+        /// <summary>Невидимая кнопка поверх нарисованной: подсвечивается при наведении и темнеет при нажатии.</summary>
+        void HotSpot(RectTransform image, Rect area, UnityAction onClick)
+        {
+            var rt = Stretch(NewRect("HotSpot", image), area.min, area.max, Vector2.zero, Vector2.zero);
+            var overlay = AddImage(rt, Color.white, Art.RoundedRect);
+            overlay.raycastTarget = true;
+            var button = rt.gameObject.AddComponent<Button>();
+            button.targetGraphic = overlay;
+            var colors = button.colors;
+            colors.normalColor = new Color(1f, 1f, 1f, 0f);
+            colors.highlightedColor = new Color(1f, 1f, 1f, 0.12f);
+            colors.pressedColor = new Color(0f, 0f, 0f, 0.25f);
+            colors.selectedColor = new Color(1f, 1f, 1f, 0f);
+            colors.fadeDuration = 0.08f;
+            button.colors = colors;
+            button.onClick.AddListener(() => _game.Sfx.PlayClick());
+            button.onClick.AddListener(onClick);
+        }
+
+        void BuildCredits(RectTransform parent)
+        {
+            var credits = Fill(NewRect("Credits", parent));
+            _creditsScreen = credits.gameObject;
+            AddImage(credits, new Color(0f, 0f, 0f, 0.6f), null).raycastTarget = true;
+            var panel = Place(NewRect("Panel", credits), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1100f, 700f));
+            AddImage(panel, CardColor, Art.RoundedRect);
+            AddText(Top(panel, 30f, 90f), "РАЗРАБОТЧИКИ", 64, AccentColor, TextAnchor.MiddleCenter, FontStyle.Bold);
+            AddText(Top(panel, 140f, 400f), string.Join("\n", Credits), 34, TextColor, TextAnchor.UpperCenter, FontStyle.Normal);
+            var back = Place(NewRect("Back", panel), new Vector2(0.5f, 0f), new Vector2(0f, 80f), new Vector2(360f, 96f));
+            MakeButton(back, SecondaryButtonColor, () => ShowCredits(false));
+            AddText(Fill(NewRect("Label", back)), "Назад  [Esc]", 34, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            _creditsScreen.SetActive(false);
+        }
+
+        void ShowDishSelect(bool visible)
+        {
+            _dishScreen.SetActive(visible);
+            _mainScreen.SetActive(!visible);
+        }
+
+        void ShowCredits(bool visible) => _creditsScreen.SetActive(visible);
+
+        /// <summary>Настройки из главного меню — та же панель, что в паузе, без игровых кнопок.</summary>
+        void ShowSettings()
+        {
+            _settingsMode = true;
+            _pauseTitle.text = "НАСТРОЙКИ";
+            _pauseGameButtons.SetActive(false);
+            _settingsBack.SetActive(true);
+            RefreshGraphicsLabels();
+            _pause.SetActive(true);
+        }
+
+        void HideSettings()
+        {
+            _settingsMode = false;
+            _pause.SetActive(false);
+        }
+
+        /// <summary>Esc в меню: закрыть верхний экран. Возвращает true, если что-то закрылось.</summary>
+        public bool MenuBack()
+        {
+            if (_settingsMode) { HideSettings(); return true; }
+            if (_creditsScreen.activeSelf) { ShowCredits(false); return true; }
+            if (_dishScreen.activeSelf) { ShowDishSelect(false); return true; }
+            return false;
+        }
+
+        /// <summary>Картинки меню: покрыть экран с сохранением пропорций, прижать к верху.</summary>
+        void LayoutCovers()
+        {
+            var size = _root.rect.size;
+            for (int i = 0; i < _covers.Count; i++)
+            {
+                float aspect = _coverAspects[i];
+                float w = Mathf.Max(size.x, size.y * aspect);
+                _covers[i].sizeDelta = new Vector2(w, w / aspect);
+            }
         }
 
         void BuildResults()
@@ -518,7 +648,7 @@ namespace RecipeSlicer
             AddText(Fill(NewRect("Label", again)), "Ещё раз  [R]", 36, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
 
             var back = Place(NewRect("Back", panel), new Vector2(0.5f, 0f), new Vector2(220f, 80f), new Vector2(400f, 96f));
-            MakeButton(back, SecondaryButtonColor, _game.BackToMenu);
+            MakeButton(back, SecondaryButtonColor, _game.ToDishSelect);
             AddText(Fill(NewRect("Label", back)), "Другое блюдо  [Esc]", 32, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
         }
 
@@ -534,7 +664,7 @@ namespace RecipeSlicer
             var panel = Place(NewRect("Panel", pause), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1000f, 940f));
             AddImage(panel, CardColor, Art.RoundedRect);
 
-            AddText(Top(panel, 24f, 90f), "ПАУЗА", 72, AccentColor, TextAnchor.MiddleCenter, FontStyle.Bold);
+            _pauseTitle = AddText(Top(panel, 24f, 90f), "ПАУЗА", 72, AccentColor, TextAnchor.MiddleCenter, FontStyle.Bold);
 
             AddText(Top(panel, 124f, 50f), "Звук", 40, GoodColor, TextAnchor.MiddleLeft, FontStyle.Bold);
             SliderRow(panel, 182f, "Общая громкость", 0f, 1f, GameSettings.Master, GameSettings.SetMaster, Percent);
@@ -553,6 +683,16 @@ namespace RecipeSlicer
                 }, Percent);
 
             const float buttonY = 78f;
+            // Игровые кнопки (в паузе) и «Назад» (в настройках из главного меню).
+            var gameButtons = Fill(NewRect("GameButtons", panel));
+            _pauseGameButtons = gameButtons.gameObject;
+            var settingsBack = Place(NewRect("SettingsBack", panel), new Vector2(0.5f, 0f), new Vector2(0f, buttonY), new Vector2(360f, 96f));
+            MakeButton(settingsBack, ButtonColor, HideSettings);
+            AddText(Fill(NewRect("Label", settingsBack)), "Назад  [Esc]", 32, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            _settingsBack = settingsBack.gameObject;
+            _settingsBack.SetActive(false);
+            panel = gameButtons;
+
             var resume = Place(NewRect("Resume", panel), new Vector2(0.5f, 0f), new Vector2(-310f, buttonY), new Vector2(290f, 96f));
             MakeButton(resume, ButtonColor, _game.Resume);
             AddText(Fill(NewRect("Label", resume)), "Продолжить  [Esc]", 30, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);

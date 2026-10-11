@@ -130,6 +130,13 @@ namespace RecipeSlicer
             GoToMenu();
         }
 
+        /// <summary>С экрана результата — сразу к выбору блюда.</summary>
+        public void ToDishSelect()
+        {
+            Sfx.PlayClick();
+            GoToMenu(dishSelect: true);
+        }
+
         // ───────────────────────── Пауза ─────────────────────────
 
         /// <summary>Пауза доступна во время отсчёта и раунда.</summary>
@@ -169,12 +176,12 @@ namespace RecipeSlicer
 
         static string BestKey(RecipeDef recipe) => "best_" + recipe.Id;
 
-        void GoToMenu()
+        void GoToMenu(bool dishSelect = false)
         {
             ClearPause();
             ClearIngredients();
             _state = State.Menu;
-            _ui.ShowMenu();
+            _ui.ShowMenu(dishSelect);
             Sfx.PlayMusic(MusicTrack.Lobby);
         }
 
@@ -192,6 +199,8 @@ namespace RecipeSlicer
             switch (_state)
             {
                 case State.Menu:
+                    if (InputUtil.BackPressed()) _ui.MenuBack();
+                    if (!_ui.DishSelectOpen) break;
                     for (int i = 0; i < Recipes.All.Length; i++)
                     {
                         if (!InputUtil.DishPressed(i)) continue;
@@ -231,7 +240,7 @@ namespace RecipeSlicer
             if (InputUtil.BackPressed())
             {
                 if (_state == State.Countdown || _state == State.Playing) Pause();
-                else BackToMenu();
+                else ToDishSelect();
                 return true;
             }
             return false;
