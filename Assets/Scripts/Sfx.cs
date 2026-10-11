@@ -3,6 +3,14 @@ using UnityEngine;
 
 namespace RecipeSlicer
 {
+    /// <summary>Фоновая музыка: лобби (меню) или раунд.</summary>
+    public enum MusicTrack
+    {
+        None,
+        Lobby,
+        Round,
+    }
+
     /// <summary>
     /// Все звуки и музыка игры. Клипы берутся из Assets/Resources/Audio/...
     /// Если файла нет — играет процедурная заглушка, поэтому игра работает и без ассетов.
@@ -25,14 +33,6 @@ namespace RecipeSlicer
     ///                              PlayCountdownGo()      Countdown/countdown_go
     ///     Клик в меню              PlayClick()            UI/click (пока — заглушка)
     /// </summary>
-    /// <summary>Фоновая музыка: лобби (меню) или раунд.</summary>
-    public enum MusicTrack
-    {
-        None,
-        Lobby,
-        Round,
-    }
-
     public sealed class Sfx : MonoBehaviour
     {
         const int Rate = 44100;
