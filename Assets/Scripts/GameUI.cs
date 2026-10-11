@@ -271,7 +271,7 @@ namespace RecipeSlicer
         {
             int seconds = Mathf.CeilToInt(round.TimeLeft);
             _timer.text = $"{seconds / 60}:{seconds % 60:00}";
-            bool hurry = round.TimeLeft > 0f && round.TimeLeft <= 10f;
+            bool hurry = round.TimeLeft > 0f && round.TimeLeft <= 5f;
             _timer.color = hurry ? BadColor : TextColor;
             float pulse = hurry ? 1f + 0.08f * Mathf.Abs(Mathf.Sin(Time.time * 6f)) : 1f;
             _timerRect.localScale = new Vector3(pulse, pulse, 1f);
