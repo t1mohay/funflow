@@ -9,16 +9,6 @@ public sealed class SpriteImportSettings : AssetPostprocessor
         bool background = assetPath.Contains("/Resources/Kitchen/") || assetPath.Contains("/Resources/Menu/");
         bool ui = assetPath.Contains("/Resources/UI/");
         var importer = (TextureImporter)assetImporter;
-        if (assetPath.Contains("/Resources/Cursor/"))
-        {
-            // Курсор: читаемая несжатая текстура без мипмапов — так требует Cursor.SetCursor.
-            importer.textureType = TextureImporterType.Cursor;
-            importer.alphaIsTransparency = true;
-            importer.mipmapEnabled = false;
-            importer.isReadable = true;
-            importer.textureCompression = TextureImporterCompression.Uncompressed;
-            return;
-        }
         if (!icon && !background && !ui) return;
 
         importer.textureType = TextureImporterType.Sprite;
