@@ -52,6 +52,7 @@ namespace RecipeSlicer
         void Awake()
         {
             GameSettings.Load();
+            InputUtil.LoadBindings();
             SetupCamera();
 
             _background = new GameObject("Background").AddComponent<SpriteRenderer>();
@@ -194,7 +195,11 @@ namespace RecipeSlicer
 
             if (IsPaused)
             {
-                if (InputUtil.BackPressed()) Resume();
+                // Esc сначала закрывает подменю (горячие клавиши), потом снимает паузу.
+                if (InputUtil.BackPressed())
+                {
+                    if (!_ui.CloseHotkeys()) Resume();
+                }
                 else if (InputUtil.RestartPressed()) Restart();
                 return;
             }
