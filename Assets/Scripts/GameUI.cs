@@ -466,9 +466,9 @@ namespace RecipeSlicer
         static readonly Rect StartButton = PixelRect(437, 193, 845, 290);
         static readonly Rect SettingsButton = PixelRect(437, 310, 845, 405);
         static readonly Rect CreditsButton = PixelRect(437, 425, 845, 518);
-        static readonly Rect BackButton = PixelRect(25, 500, 167, 552);
+        static readonly Rect BackButton = PixelRect(55, 475, 207, 537);
         // Карточки блюд слева направо — в том же порядке, что Recipes.All (салат, пицца, том ям).
-        static readonly Rect[] DishCards = { PixelRect(186, 214, 479, 550), PixelRect(491, 214, 792, 550), PixelRect(805, 214, 1091, 550) };
+        static readonly Rect[] DishCards = { PixelRect(248, 265, 500, 555), PixelRect(512, 265, 770, 555), PixelRect(782, 265, 1028, 555) };
 
         /// <summary>Команда для экрана «Разработчики».</summary>
         static readonly string[] Credits =
@@ -616,12 +616,15 @@ namespace RecipeSlicer
         /// <summary>Картинки меню: покрыть экран с сохранением пропорций, прижать к верху.</summary>
         void LayoutCovers()
         {
+            // Те же масштаб (+4%) и сдвиг вверх (1% высоты), что у фона игры в GameManager,
+            // чтобы при переходе меню → игра стена, полки и посуда не сдвигались.
             var size = _root.rect.size;
             for (int i = 0; i < _covers.Count; i++)
             {
                 float aspect = _coverAspects[i];
-                float w = Mathf.Max(size.x, size.y * aspect);
+                float w = Mathf.Max(size.x, size.y * aspect) * 1.04f;
                 _covers[i].sizeDelta = new Vector2(w, w / aspect);
+                _covers[i].anchoredPosition = new Vector2(0f, size.y * 0.01f);
             }
         }
 
