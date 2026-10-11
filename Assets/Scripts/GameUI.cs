@@ -599,7 +599,7 @@ namespace RecipeSlicer
             var title = MenuText(Place(NewRect("Title", parent), new Vector2(0.5f, 0.5f), position, new Vector2(1400f, 150f)),
                 text, 110, MenuGreenText, TextAnchor.MiddleCenter, FontStyle.Bold);
             title.GetComponent<Shadow>().enabled = false;
-            var outline = title.gameObject.AddComponent<Outline>();
+            var outline = title.gameObject.AddComponent<SmoothOutline>();
             outline.effectColor = MenuCream;
             outline.effectDistance = new Vector2(4f, -4f);
         }
@@ -727,7 +727,7 @@ namespace RecipeSlicer
                 "Пауза", 100, MenuGreenText, TextAnchor.MiddleCenter, FontStyle.Bold);
             title.GetComponent<Shadow>().enabled = false;
             _pauseTitle = title;
-            var outline = title.gameObject.AddComponent<Outline>();
+            var outline = title.gameObject.AddComponent<SmoothOutline>();
             outline.effectColor = MenuCream;
             outline.effectDistance = new Vector2(4f, -4f);
 
