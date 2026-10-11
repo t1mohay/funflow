@@ -27,6 +27,7 @@ namespace RecipeSlicer
 
         Camera _cam;
         SpriteRenderer _background;
+        bool _backgroundIsPicture;
         GameUI _ui;
         Fx _fx;
         Spawner _spawner;
@@ -48,7 +49,10 @@ namespace RecipeSlicer
 
             _background = new GameObject("Background").AddComponent<SpriteRenderer>();
             _background.transform.SetParent(transform, false);
-            _background.sprite = Art.Gradient(BackgroundBottom, BackgroundTop);
+            // Картинка кухни, если есть; иначе — градиент-заглушка.
+            var kitchen = Art.LoadSprite("Kitchen/background");
+            _backgroundIsPicture = kitchen != null;
+            _background.sprite = kitchen != null ? kitchen : Art.Gradient(BackgroundBottom, BackgroundTop);
             _background.sortingOrder = -100;
 
             Sfx = AddChild<Sfx>("Sfx");
@@ -381,7 +385,16 @@ namespace RecipeSlicer
 
             // С запасом 10%, чтобы при тряске камеры не было видно краёв.
             var size = _background.sprite.bounds.size;
-            _background.transform.localScale = new Vector3(2.2f * halfW / size.x, 2.2f * halfH / size.y, 1f);
+            if (_backgroundIsPicture)
+            {
+                // Картинку не искажаем: заполняем экран с сохранением пропорций (+4% под тряску), лишнее обрезается.
+                float scale = Mathf.Max(2f * halfW / size.x, 2f * halfH / size.y) * 1.04f;
+                _background.transform.localScale = new Vector3(scale, scale, 1f);
+            }
+            else
+            {
+                _background.transform.localScale = new Vector3(2.2f * halfW / size.x, 2.2f * halfH / size.y, 1f);
+            }
         }
     }
 }

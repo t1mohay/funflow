@@ -21,7 +21,7 @@ namespace RecipeSlicer
         public static readonly Color BadColor = new Color(1f, 0.4f, 0.35f);
         public static readonly Color AccentColor = new Color(1f, 0.8f, 0.3f);
 
-        static readonly Color PanelColor = new Color(0f, 0f, 0f, 0.4f);
+        static readonly Color PanelColor = new Color(0f, 0f, 0f, 0.55f);
         static readonly Color RowColor = new Color(1f, 1f, 1f, 0.07f);
         static readonly Color RowDoneColor = new Color(0.4f, 0.85f, 0.3f, 0.3f);
         static readonly Color RowWrongColor = new Color(1f, 0.3f, 0.25f, 0.12f);
@@ -61,6 +61,7 @@ namespace RecipeSlicer
 
         GameObject _menu, _hud, _results;
         RectTransform _neededList, _wrongList, _floatLayer, _timerRect;
+        GameObject _timerPlate;
         Text _timer, _score, _countdown, _banner;
         Image _flash;
         Color _bannerColor;
@@ -125,6 +126,7 @@ namespace RecipeSlicer
             _results.SetActive(false);
             _hud.SetActive(true);
             _timerRect.gameObject.SetActive(true);
+            _timerPlate.SetActive(true);
             _score.gameObject.SetActive(true);
             BuildRows(round.Recipe);
             RefreshRows(round);
@@ -135,6 +137,7 @@ namespace RecipeSlicer
         {
             _results.SetActive(true);
             _timerRect.gameObject.SetActive(false);
+            _timerPlate.SetActive(false);
             _score.gameObject.SetActive(false);
 
             var dish = Art.DishSprite(round.Recipe);
@@ -361,6 +364,9 @@ namespace RecipeSlicer
             _neededList = BuildSidePanel(hud, "Нужно", "НУЖНО", GoodColor, 0f, SidePanelFraction);
             _wrongList = BuildSidePanel(hud, "НеНужно", "НЕ НУЖНО", BadColor, 1f - SidePanelFraction, 1f);
 
+            // Тёмная плашка под таймером и счётом — чтобы читались на светлом фоне.
+            _timerPlate = Place(NewRect("TimerPlate", hud), new Vector2(0.5f, 1f), new Vector2(0f, -102f), new Vector2(460f, 176f)).gameObject;
+            AddImage((RectTransform)_timerPlate.transform, PanelColor, Art.RoundedRect);
             _timerRect = Place(NewRect("Timer", hud), new Vector2(0.5f, 1f), new Vector2(0f, -70f), new Vector2(400f, 110f));
             _timer = AddText(_timerRect, "1:00", 84, TextColor, TextAnchor.MiddleCenter, FontStyle.Bold);
             _score = AddText(Place(NewRect("Score", hud), new Vector2(0.5f, 1f), new Vector2(0f, -150f), new Vector2(600f, 60f)),
