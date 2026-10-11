@@ -39,3 +39,6 @@ crashlytics-build.properties
 # ОС
 .DS_Store
 Thumbs.db
+
+# Выход генераторов звука (готовые файлы копируются в Assets/Resources/Audio)
+Tools/AudioGen/out/

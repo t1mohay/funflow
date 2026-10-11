@@ -27,7 +27,7 @@ namespace RecipeSlicer
     ///     Комбо                    PlayCombo()            Task/task_complete_short
     ///  7. Таймер 5 секунд          PlayTimerTick(sec)     Timer/timer_tick_5..1
     ///     Время вышло              PlayTimeUp()           Timer/timer_end
-    ///  8. Музыка в игре            PlayMusic(MusicTrack.Round)       Music/game_loop (пока — лобби)
+    ///  8. Музыка в игре            PlayMusic(MusicTrack.Round)       Music/game_loop
     ///  9. Музыка в лобби           PlayMusic(MusicTrack.Lobby)       Music/lobby_loop
     /// 10. Отсчёт 3 секунды         PlayCountdownTick()    Countdown/countdown_tick
     ///                              PlayCountdownGo()      Countdown/countdown_go
@@ -37,7 +37,7 @@ namespace RecipeSlicer
     {
         const int Rate = 44100;
         const float TwoPi = Mathf.PI * 2f;
-        const float MusicVolume = 0.45f;
+        const float MusicVolume = 0.3f;
         const float MusicFade = 1.2f;
         /// <summary>Во сколько раз приглушается музыка, пока звучит таймер или отсчёт.</summary>
         const float MusicDuck = 0.35f;
@@ -225,8 +225,8 @@ namespace RecipeSlicer
         /// <summary>Комбо: 3+ нужных одним движением.</summary>
         public void PlayCombo()
         {
-            if (_taskShort != null) Play(_taskShort, 0.5f, 0f);
-            else Play(_go, 0.4f, 0f);
+            // Громче и с приглушением музыки, чтобы комбо было отчётливо слышно.
+            PlayCue(_taskShort != null ? _taskShort : _go, _taskShort != null ? 0.95f : 0.5f, 1.2f);
         }
 
         // ───────────────────────── 7. Таймер конца раунда ─────────────────────────

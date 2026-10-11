@@ -35,8 +35,8 @@
 | 6 | Комбо | `PlayCombo()` | 3+ нужных одним движением | `Task/task_complete_short.wav` | ≈2,4 с | 0.50 |
 | 7 | Таймер 5 секунд | `PlayTimerTick(sec)` | последние 5 секунд раунда, раз в секунду | `Timer/timer_tick_5..1.wav` | ≈0,85 с | 0.90 |
 | 7 | Время вышло | `PlayTimeUp()` | время раунда закончилось | `Timer/timer_end.wav` | ≈2,1 с | 0.85 |
-| 8 | Музыка в игре | `PlayMusic(MusicTrack.Round)` | `StartRound` | **пока нет** — играет лобби, ждёт `Music/game_loop` | — | 0.45 |
-| 9 | Музыка в лобби | `PlayMusic(MusicTrack.Lobby)` | `GoToMenu` | `Music/lobby_loop.ogg` | 44,65 с, петля | 0.45 |
+| 8 | Музыка в игре | `PlayMusic(MusicTrack.Round)` | `StartRound` | `Music/game_loop.ogg` (`gen_08_game.py`, 104 BPM) | 36,9 с, петля | 0.3 |
+| 9 | Музыка в лобби | `PlayMusic(MusicTrack.Lobby)` | `GoToMenu` | `Music/lobby_loop.ogg` | 44,65 с, петля | 0.3 |
 | 10 | Отсчёт 3-2-1 | `PlayCountdownTick()` | шаги «3», «2», «1» (каждые 0,65 с) | `Countdown/countdown_tick.wav` | ≈0,9 с | 0.80 |
 | 10 | Старт «Режь!» | `PlayCountdownGo()` | конец отсчёта, начало раунда | `Countdown/countdown_go.wav` | ≈2,2 с | 0.85 |
 | — | Клик в меню | `PlayClick()` | выбор блюда, выход в меню | **пока заглушка**, ждёт `UI/click_01..03` | — | 0.35 |
