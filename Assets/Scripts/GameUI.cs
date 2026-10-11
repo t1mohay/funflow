@@ -575,6 +575,17 @@ namespace RecipeSlicer
             MenuButton(main, new Vector2(0f, 110f), "▶  Начать игру", true, () => ShowDishSelect(true));
             MenuButton(main, new Vector2(0f, -40f), "Настройки", false, () => OpenSettings(false));
             MenuButton(main, new Vector2(0f, -190f), "Разработчики", false, () => ShowCredits(true));
+            MenuButton(main, new Vector2(0f, -340f), "Выйти из игры", false, QuitGame);
+        }
+
+        static void QuitGame()
+        {
+#if UNITY_EDITOR
+            // В редакторе Application.Quit ничего не делает — останавливаем Play.
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
         }
 
         void BuildDishScreen(RectTransform menu)
