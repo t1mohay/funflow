@@ -32,4 +32,5 @@
 
 - [Дизайн-документ](Docs/GDD.md)
 - [Список ингредиентов](Docs/INGREDIENTS.md)
+- [Звук и музыка](Docs/AUDIO.md)
 - [Сторонние ресурсы и лицензии](Docs/CREDITS.md)

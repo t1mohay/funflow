@@ -39,6 +39,8 @@ namespace RecipeSlicer
         const float TwoPi = Mathf.PI * 2f;
         const float MusicVolume = 0.45f;
         const float MusicFade = 1.2f;
+        /// <summary>Во сколько раз приглушается музыка, пока звучит таймер или отсчёт.</summary>
+        const float MusicDuck = 0.35f;
         const string Root = "Audio/";
 
         /// <summary>Тип звука разреза по Id ингредиента. Неизвестные — «soft».</summary>
@@ -74,6 +76,9 @@ namespace RecipeSlicer
 
         // музыка: два источника для плавной смены треков
         AudioSource _musicA, _musicB;
+        // таймер и отсчёт: свой источник с высшим приоритетом, чтобы их не перебили другие звуки
+        AudioSource _cueSource;
+        float _duckUntil;
         MusicTrack _music = MusicTrack.None;
 
         void Awake()
@@ -88,6 +93,10 @@ namespace RecipeSlicer
             }
             _musicA = NewMusicSource();
             _musicB = NewMusicSource();
+            _cueSource = gameObject.AddComponent<AudioSource>();
+            _cueSource.playOnAwake = false;
+            _cueSource.spatialBlend = 0f;
+            _cueSource.priority = 0;
 
             _swoosh = MakeSwoosh();
             _chop = MakeChop();
@@ -127,7 +136,13 @@ namespace RecipeSlicer
             _roundMusic = Load("Music/game_loop");
         }
 
-        static AudioClip Load(string path) => Resources.Load<AudioClip>(Root + path);
+        /// <summary>Загружает клип и сразу подгружает его данные, чтобы первый запуск не опаздывал.</summary>
+        static AudioClip Load(string path)
+        {
+            var clip = Resources.Load<AudioClip>(Root + path);
+            if (clip != null && clip.loadState == AudioDataLoadState.Unloaded) clip.LoadAudioData();
+            return clip;
+        }
 
         /// <summary>Загружает prefix01..prefixNN. Без keepGaps отсутствующие файлы пропускаются.</summary>
         static AudioClip[] LoadSet(string prefix, int count, bool keepGaps = false)
@@ -220,15 +235,13 @@ namespace RecipeSlicer
         public void PlayTimerTick(int secondsLeft)
         {
             var clip = secondsLeft >= 1 && secondsLeft <= 5 ? _timerTicks[secondsLeft] : null;
-            if (clip != null) Play(clip, 0.55f, 0f);
-            else Play(_tick, 0.4f, 0f);
+            PlayCue(clip != null ? clip : _tick, clip != null ? 0.9f : 0.5f, 1.1f);
         }
 
         /// <summary>Время раунда вышло.</summary>
         public void PlayTimeUp()
         {
-            if (_timerEnd != null) Play(_timerEnd, 0.6f, 0f);
-            else Play(_lose, 0.45f, 0f);
+            PlayCue(_timerEnd != null ? _timerEnd : _lose, _timerEnd != null ? 0.85f : 0.45f, 2.2f);
         }
 
         public void PlayLose() => Play(_lose, 0.45f, 0f);
@@ -237,14 +250,20 @@ namespace RecipeSlicer
 
         public void PlayCountdownTick()
         {
-            if (_countdownTick != null) Play(_countdownTick, 0.55f, 0f);
-            else Play(_tick, 0.4f, 0f);
+            PlayCue(_countdownTick != null ? _countdownTick : _tick, _countdownTick != null ? 0.8f : 0.4f, 0.8f);
         }
 
         public void PlayCountdownGo()
         {
-            if (_countdownGo != null) Play(_countdownGo, 0.65f, 0f);
-            else Play(_go, 0.4f, 0f);
+            PlayCue(_countdownGo != null ? _countdownGo : _go, _countdownGo != null ? 0.85f : 0.4f, 1.5f);
+        }
+
+        /// <summary>Важный сигнал: свой источник (не обрывается другими звуками) и приглушение музыки на duck секунд.</summary>
+        void PlayCue(AudioClip clip, float volume, float duck)
+        {
+            if (clip == null) return;
+            _cueSource.PlayOneShot(clip, volume);
+            _duckUntil = Mathf.Max(_duckUntil, Time.unscaledTime + duck);
         }
 
         // Старые имена оставлены для совместимости.
@@ -286,7 +305,10 @@ namespace RecipeSlicer
         void Update()
         {
             float step = Time.unscaledDeltaTime * MusicVolume / MusicFade;
-            if (_musicA.clip != null) _musicA.volume = Mathf.MoveTowards(_musicA.volume, MusicVolume, step);
+            float target = Time.unscaledTime < _duckUntil ? MusicVolume * MusicDuck : MusicVolume;
+            // вниз — быстро (0,15 с), чтобы сигнал сразу был слышен; вверх — плавно
+            float rate = _musicA.volume > target ? MusicVolume / 0.15f * Time.unscaledDeltaTime : step;
+            if (_musicA.clip != null) _musicA.volume = Mathf.MoveTowards(_musicA.volume, target, rate);
             if (_musicB.isPlaying)
             {
                 _musicB.volume = Mathf.MoveTowards(_musicB.volume, 0f, step);
