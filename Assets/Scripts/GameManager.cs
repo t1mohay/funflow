@@ -34,7 +34,6 @@ namespace RecipeSlicer
         bool _backgroundIsPicture;
         GameUI _ui;
         Fx _fx;
-        Container _container;
         Spawner _spawner;
         readonly List<Ingredient> _active = new List<Ingredient>();
 
@@ -66,8 +65,6 @@ namespace RecipeSlicer
             Sfx = AddChild<Sfx>("Sfx");
             _fx = AddChild<Fx>("Fx");
             _fx.Init(_cam);
-            _container = AddChild<Container>("Container");
-            _container.Init(_fx);
             AddChild<SwipeInput>("Swipe").Init(this, _cam);
             _ui = AddChild<GameUI>("UI");
             _ui.Init(this, _cam);
@@ -118,7 +115,6 @@ namespace RecipeSlicer
             _stateTimer = 0f;
             _state = State.Countdown;
             _ui.ShowRound(_round);
-            _container.SetRecipe(recipe);
             _ui.ShowBanner("Режь только то, что в списке «НУЖНО»!", GameUI.AccentColor, 2.6f);
             Sfx.PlayClick();
             Sfx.PlayMusic(MusicTrack.Round, restart: true);
@@ -187,7 +183,6 @@ namespace RecipeSlicer
             ClearIngredients();
             _state = State.Menu;
             _ui.ShowMenu(dishSelect);
-            _container.Hide();
             Sfx.PlayMusic(MusicTrack.Lobby);
         }
 
@@ -391,7 +386,7 @@ namespace RecipeSlicer
             var def = ingredient.Def;
             Vector2 position = ingredient.Position;
             var result = _round.Register(def);
-            ingredient.Slice(direction, _container, result);
+            ingredient.Slice(direction);
 
             _fx.Burst(position, def.Color, result == SliceResult.Wrong ? 10 : 16);
             Sfx.PlayChop(def.Id);
@@ -425,7 +420,6 @@ namespace RecipeSlicer
             }
 
             _ui.OnSliced(def, _round);
-            _container.SetProgress(_round.TotalCollected / (float)_recipe.TotalNeeded);
 
             if (result == SliceResult.Needed && _round.IsComplete)
             {
@@ -450,7 +444,6 @@ namespace RecipeSlicer
             float halfW = halfH * _cam.aspect;
             float side = 2f * halfW * GameUI.SidePanelFraction;
             PlayArea = Rect.MinMaxRect(-halfW + side, -halfH, halfW - side, halfH);
-            _container.Place(halfH);
 
             // С запасом 10%, чтобы при тряске камеры не было видно краёв.
             var size = _background.sprite.bounds.size;
