@@ -542,6 +542,10 @@ namespace RecipeSlicer
             if (sprite == null) img.color = CardColor;
             _covers.Add(image);
             _coverAspects.Add(sprite != null ? sprite.rect.width / sprite.rect.height : 1280f / 853f);
+
+            // Кнопки и карточки — отдельным слоем без затемнения, чтобы были ярче фона.
+            var buttons = Art.LoadSprite(spritePath + "_ui");
+            if (buttons != null) AddImage(Fill(NewRect("Buttons", image)), Color.white, null).sprite = buttons;
             return image;
         }
 
