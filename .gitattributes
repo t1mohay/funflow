@@ -1,0 +1,10 @@
+# Одинаковые переводы строк на Windows и Mac
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ttf binary
+*.otf binary
+*.wav binary
+*.mp3 binary
+*.ogg binary
