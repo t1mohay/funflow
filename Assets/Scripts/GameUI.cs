@@ -812,9 +812,14 @@ namespace RecipeSlicer
             // Подвес с точкой вращения в кольце на перекладине.
             var hanger = Place(NewRect(recipe.Title + " (подвес)", board), center, new Vector2(x, 0f), Vector2.zero);
 
+            // Лист с тенью — отдельной группой: когда лист рецепта «снимают» с доски, она прячется,
+            // а прищепка и кнопка остаются на месте (OpenRecipeSheet / CloseRecipeSheet).
+            var paperGroup = Place(NewRect("Paper", hanger), center, Vector2.zero, Vector2.zero);
+            var paperFade = paperGroup.gameObject.AddComponent<CanvasGroup>();
             var cardPosition = new Vector2(0f, OrderCardTop - OrderCardSize.y * 0.5f);
-            DropShadow(hanger, center, cardPosition, OrderCardSize, 20f);
-            var card = Place(NewRect(recipe.Title, hanger), center, cardPosition, OrderCardSize);
+            DropShadow(paperGroup, center, cardPosition, OrderCardSize, 20f);
+            var card = Place(NewRect(recipe.Title, paperGroup), center, cardPosition, OrderCardSize);
+            _orderPapers[recipe] = (card, paperFade);
             Image fill;
             var paper = Art.LoadSprite("UI/order_paper");
             if (paper != null)
@@ -1198,6 +1203,15 @@ namespace RecipeSlicer
 
         GameObject _recipeSheet;
         RecipeDef _sheetRecipe;
+        RectTransform _sheetHolder;
+        Image _sheetDim;
+        /// <summary>Листы на доске заказов: откуда «достаётся» лист рецепта и куда возвращается.</summary>
+        readonly Dictionary<RecipeDef, (RectTransform Card, CanvasGroup Group)> _orderPapers =
+            new Dictionary<RecipeDef, (RectTransform, CanvasGroup)>();
+        // Лист, который сейчас улетает обратно на доску.
+        GameObject _closingSheet;
+        Coroutine _closingRoutine, _openingRoutine;
+        const float SheetDim = 0.55f;
 
         /// <summary>Открыт лист рецепта на экране выбора заказа.</summary>
         public bool RecipeSheetOpen => _recipeSheet != null;
@@ -1209,6 +1223,7 @@ namespace RecipeSlicer
         void OpenRecipeSheet(RecipeDef recipe)
         {
             CloseRecipeSheet(silent: true);
+            FinishClosing();
             _game.Sfx.PlayPaper();
             _sheetRecipe = recipe;
             var center = new Vector2(0.5f, 0.5f);
@@ -1218,23 +1233,62 @@ namespace RecipeSlicer
             // Затемнение ловит клики: нажатие мимо листа закрывает его. Лист — не его потомок,
             // иначе клик по листу тоже дошёл бы до этой кнопки.
             var dimRect = Fill(NewRect("Dim", overlay));
-            AddImage(dimRect, new Color(0f, 0f, 0f, 0.55f), null).raycastTarget = true;
+            _sheetDim = AddImage(dimRect, new Color(0f, 0f, 0f, SheetDim), null);
+            _sheetDim.raycastTarget = true;
             dimRect.gameObject.AddComponent<Button>().onClick.AddListener(() => CloseRecipeSheet());   // звук бумаги
 
             var holder = Place(NewRect("Holder", overlay), center, new Vector2(0f, -10f), RecipeSheetSize);
-            DropShadow(holder, center, Vector2.zero, RecipeSheetSize);
+            _sheetHolder = holder;
+            var paperSprite = Art.LoadSprite("UI/recipe_paper");
+            PaperSheet paperShadow = null;
+            if (paperSprite != null)
+            {
+                // Тень той же формы, что лист: под загнутым уголком её нет, там видно только тень от самого уголка.
+                paperShadow = Place(NewRect("Shadow", holder), center, new Vector2(0f, -12f), RecipeSheetSize + new Vector2(6f, 4f))
+                    .gameObject.AddComponent<PaperSheet>();
+                paperShadow.Texture = paperSprite.texture;   // берём только альфу: скруглённые углы как у листа
+                paperShadow.color = new Color(0f, 0f, 0f, 0.35f);
+                paperShadow.raycastTarget = false;
+            }
+            else DropShadow(holder, center, Vector2.zero, RecipeSheetSize);
             var sheet = Place(NewRect("Sheet", holder), center, Vector2.zero, RecipeSheetSize);
-            var edge = Framed(sheet, PaperEdge, 14f);
-            edge.raycastTarget = true; // клики по самому листу не закрывают его
-            var paper = Rounded(Stretch(NewRect("Paper", edge.rectTransform), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f)),
-                PaperColor, 8f).rectTransform;
+            RectTransform paper;
+            if (paperSprite != null)
+            {
+                // Бумага как у листов заказа (Tools/ArtGen/gen_recipe_paper.py), угол загнут и медленно «дышит».
+                var paperGraphic = sheet.gameObject.AddComponent<PaperSheet>();
+                paperGraphic.Texture = paperSprite.texture;
+                paperGraphic.raycastTarget = true; // клики по самому листу не закрывают его
+                var curl = Fill(NewRect("Curl", sheet)).gameObject.AddComponent<PaperCurl>();
+                curl.Sheet = paperGraphic;
+                curl.Shadow = paperShadow;
+                paper = Stretch(NewRect("Paper", sheet), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f));
+            }
+            else
+            {
+                var edge = Framed(sheet, PaperEdge, 14f);
+                edge.raycastTarget = true;
+                paper = Rounded(Stretch(NewRect("Paper", edge.rectTransform), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f)),
+                    PaperColor, 8f).rectTransform;
+            }
 
-            // Зажим сверху — как у листов на доске, только крупнее.
-            var clamp = Place(NewRect("Clamp", holder), new Vector2(0.5f, 1f), new Vector2(0f, -4f), new Vector2(170f, 64f));
-            Rounded(clamp, ClipDark, 14f);
-            var clampFace = Rounded(Stretch(NewRect("Face", clamp), Vector2.zero, Vector2.one, new Vector2(4f, 7f), new Vector2(-4f, -4f)), ClipColor, 11f);
-            Rounded(Stretch(NewRect("Shine", clampFace.rectTransform), new Vector2(0f, 0.55f), Vector2.one, new Vector2(12f, 0f), new Vector2(-12f, -4f)),
-                new Color(1f, 1f, 1f, 0.3f), 5f);
+            // Зажим сверху — тот же, что держит листы на доске (без крючка), только крупнее: шарнир над краем, губки на листе.
+            var clipSprite = Art.LoadSprite("UI/recipe_clip");
+            if (clipSprite != null)
+            {
+                var clipImage = AddImage(Place(NewRect("Clip", holder), new Vector2(0.5f, 1f), new Vector2(0f, -9f), new Vector2(180f, 72f)), Color.white, null);
+                clipImage.sprite = clipSprite;
+                clipImage.type = Image.Type.Simple;
+                clipImage.raycastTarget = false;
+            }
+            else
+            {
+                var clamp = Place(NewRect("Clamp", holder), new Vector2(0.5f, 1f), new Vector2(0f, -4f), new Vector2(170f, 64f));
+                Rounded(clamp, ClipDark, 14f);
+                var clampFace = Rounded(Stretch(NewRect("Face", clamp), Vector2.zero, Vector2.one, new Vector2(4f, 7f), new Vector2(-4f, -4f)), ClipColor, 11f);
+                Rounded(Stretch(NewRect("Shine", clampFace.rectTransform), new Vector2(0f, 0.55f), Vector2.one, new Vector2(12f, 0f), new Vector2(-12f, -4f)),
+                    new Color(1f, 1f, 1f, 0.3f), 5f);
+            }
 
             // ── верх: название и история слева, картинка справа
             var title = MenuText(TopLeft(paper, 60f, 48f, 330f, 84f), recipe.Title, 68, MenuGreenText, TextAnchor.MiddleLeft, FontStyle.Bold);
@@ -1297,17 +1351,139 @@ namespace RecipeSlicer
             MenuButton(holder, new Vector2(150f, -RecipeSheetSize.y * 0.5f + 85f), "Начать готовку ▶", true,
                 () => _game.StartRound(recipe), new Vector2(500f, 110f));
 
-            StartCoroutine(PopIn(holder));
+            _openingRoutine = StartCoroutine(PullOut(overlay, holder, _sheetDim, recipe));
         }
 
         /// <param name="silent">Без звука бумаги — когда лист убирается вместе с экраном или сразу открывается другой.</param>
         void CloseRecipeSheet(bool silent = false)
         {
             if (_recipeSheet == null) return;
-            if (!silent) _game.Sfx.PlayPaper();
-            Destroy(_recipeSheet);
+            FinishClosing();   // предыдущий лист, если он ещё летит на доску, — сразу на место
+            if (_openingRoutine != null) StopCoroutine(_openingRoutine);
+            _openingRoutine = null;
+            var sheet = _recipeSheet;
+            var recipe = _sheetRecipe;
             _recipeSheet = null;
             _sheetRecipe = null;
+            if (silent || _sheetHolder == null || !isActiveAndEnabled)
+            {
+                Destroy(sheet);
+                ShowOrderPapers();
+                return;
+            }
+            _game.Sfx.PlayPaper();
+            // Пока лист улетает, он больше не ловит клики.
+            var fade = sheet.GetComponent<CanvasGroup>();
+            if (fade == null) fade = sheet.AddComponent<CanvasGroup>();
+            fade.blocksRaycasts = false;
+            _closingSheet = sheet;
+            _closingRoutine = StartCoroutine(PutBack(sheet, _sheetHolder, _sheetDim, recipe));
+        }
+
+        /// <summary>Мгновенно доиграть возврат предыдущего листа (если открывают новый, пока старый улетает).</summary>
+        void FinishClosing()
+        {
+            if (_closingRoutine != null) StopCoroutine(_closingRoutine);
+            _closingRoutine = null;
+            if (_closingSheet != null) Destroy(_closingSheet);
+            _closingSheet = null;
+            ShowOrderPapers();
+        }
+
+        /// <summary>Вернуть на доску все листы (кроме открытого сейчас).</summary>
+        void ShowOrderPapers()
+        {
+            foreach (var pair in _orderPapers)
+                if (pair.Value.Group != null && pair.Key != _sheetRecipe) pair.Value.Group.alpha = 1f;
+        }
+
+        /// <summary>Где на экране лист заказа: позиция в координатах overlay, масштаб относительно листа рецепта и наклон.</summary>
+        bool CardPose(RecipeDef recipe, RectTransform overlay, out Vector3 position, out float scale, out float angle)
+        {
+            position = Vector3.zero; scale = 1f; angle = 0f;
+            if (recipe == null || !_orderPapers.TryGetValue(recipe, out var entry) || entry.Card == null) return false;
+            var card = entry.Card;
+            position = overlay.InverseTransformPoint(card.TransformPoint(card.rect.center));
+            float cardWidth = card.rect.width * card.lossyScale.x;
+            float sheetWidth = RecipeSheetSize.x * overlay.lossyScale.x;
+            scale = sheetWidth > 0f ? cardWidth / sheetWidth : 0.3f;
+            angle = Mathf.DeltaAngle(0f, card.eulerAngles.z - overlay.eulerAngles.z);
+            return true;
+        }
+
+        /// <summary>
+        /// Лист «достают» с доски: он отходит от прищепки, по пологой дуге вырастает в центр и выравнивается,
+        /// фон плавно темнеет. Если листа на доске нет (например, открыли клавишей с другого экрана) — выезжает снизу.
+        /// </summary>
+        IEnumerator PullOut(RectTransform overlay, RectTransform holder, Image dim, RecipeDef recipe)
+        {
+            const float duration = 0.55f;
+            Vector3 end = holder.localPosition;
+            CanvasGroup board = null;
+            if (CardPose(recipe, overlay, out var start, out float startScale, out float startAngle))
+                board = _orderPapers[recipe].Group;
+            else
+            {
+                start = end + new Vector3(0f, -RecipeSheetSize.y * 1.1f, 0f);
+                startScale = 0.92f;
+                startAngle = 4f;
+            }
+            for (float t = 0f; t < duration && holder != null; t += UiTime.Delta)
+            {
+                float k = t / duration;
+                float e = 1f - Mathf.Pow(1f - k, 3f);                       // плавное замедление в конце
+                float arc = Mathf.Sin(e * Mathf.PI) * 40f;                   // лёгкий подъём по дуге
+                holder.localPosition = Vector3.LerpUnclamped(start, end, e) + new Vector3(0f, arc, 0f);
+                holder.localScale = Vector3.one * Mathf.Lerp(startScale, 1f, e);
+                // наклон листа на доске уходит в ноль с едва заметным покачиванием
+                float angle = Mathf.Lerp(startAngle, 0f, e) - 1.5f * Mathf.Sin(e * Mathf.PI) * (1f - e);
+                holder.localRotation = Quaternion.Euler(0f, 0f, angle);
+                if (dim != null) dim.color = new Color(0f, 0f, 0f, SheetDim * Mathf.SmoothStep(0f, 1f, k / 0.6f));
+                if (board != null) board.alpha = 1f - Mathf.Clamp01(t / 0.08f);  // лист «снят» с прищепки
+                yield return null;
+            }
+            if (holder == null) yield break;
+            holder.localPosition = end;
+            holder.localScale = Vector3.one;
+            holder.localRotation = Quaternion.identity;
+            if (dim != null) dim.color = new Color(0f, 0f, 0f, SheetDim);
+            if (board != null) board.alpha = 0f;
+        }
+
+        /// <summary>Лист возвращается на своё место на доске (или уезжает вниз), фон светлеет.</summary>
+        IEnumerator PutBack(GameObject sheet, RectTransform holder, Image dim, RecipeDef recipe)
+        {
+            const float duration = 0.4f;
+            var overlay = (RectTransform)sheet.transform;
+            Vector3 start = holder.localPosition;
+            float fromScale = holder.localScale.x;
+            float fromAngle = Mathf.DeltaAngle(0f, holder.localEulerAngles.z);
+            CanvasGroup board = null;
+            if (CardPose(recipe, overlay, out var end, out float endScale, out float endAngle))
+                board = _orderPapers[recipe].Group;
+            else
+            {
+                end = start + new Vector3(0f, -RecipeSheetSize.y * 1.1f, 0f);
+                endScale = 0.92f;
+                endAngle = 4f;
+            }
+            float fromDim = dim != null ? dim.color.a : 0f;
+            for (float t = 0f; t < duration && holder != null; t += UiTime.Delta)
+            {
+                float k = t / duration;
+                float e = k * k * (3f - 2f * k);                             // мягко разгоняется и мягко садится
+                float arc = Mathf.Sin(e * Mathf.PI) * 30f;
+                holder.localPosition = Vector3.LerpUnclamped(start, end, e) + new Vector3(0f, arc, 0f);
+                holder.localScale = Vector3.one * Mathf.Lerp(fromScale, endScale, e);
+                holder.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(fromAngle, endAngle, e));
+                if (dim != null) dim.color = new Color(0f, 0f, 0f, fromDim * (1f - e));
+                // в самом конце лист снова «висит» на доске, а летящая копия исчезает
+                if (board != null && k > 0.85f) board.alpha = (k - 0.85f) / 0.15f;
+                yield return null;
+            }
+            if (sheet != null) Destroy(sheet);
+            if (board != null) board.alpha = 1f;
+            if (_closingSheet == sheet) { _closingSheet = null; _closingRoutine = null; }
         }
 
         /// <summary>
@@ -1317,19 +1493,6 @@ namespace RecipeSlicer
         {
             if (_sheetRecipe == recipe) _game.StartRound(recipe);
             else OpenRecipeSheet(recipe);
-        }
-
-        /// <summary>Лист «выпрыгивает»: быстро вырастает из чуть меньшего размера.</summary>
-        static IEnumerator PopIn(RectTransform rt)
-        {
-            const float duration = 0.18f;
-            for (float t = 0f; t < duration && rt != null; t += UiTime.Delta)
-            {
-                float k = 1f - Mathf.Pow(1f - t / duration, 3f);
-                rt.localScale = Vector3.one * Mathf.Lerp(0.85f, 1f, k);
-                yield return null;
-            }
-            if (rt != null) rt.localScale = Vector3.one;
         }
 
         /// <summary>Прямоугольник от верхнего края родителя: отступы слева/справа, отступ сверху и высота.</summary>

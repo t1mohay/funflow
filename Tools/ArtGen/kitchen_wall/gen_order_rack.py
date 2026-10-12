@@ -2,7 +2,7 @@
 (тёмный металл как у стеллажа, серебристые детали как у цепочек и держателей бокалов).
 Единица рисования = 1 единица доски заказов в GameUI; спрайты — 2 px на единицу.
 Запуск: python gen_order_rack.py [папка UI]  ->  order_rod.png, order_rod_end.png, order_mount.png,
-order_saddle.png, order_ring.png, order_clip.png"""
+order_saddle.png, order_ring.png, order_clip.png, recipe_clip.png"""
 import os, sys
 import numpy as np
 from PIL import Image
@@ -78,16 +78,18 @@ def ring():
     save(c, "order_ring.png")
 
 
-def clip():
+def clip(hook=True):
     """Зажим листа, 100×68 (как прежний спрайт): серебристый крючок от кольца
-    (центр кольца — 8 единиц от верха) и чёрный канцелярский зажим, держащий верх листа."""
-    c = Canvas(0, 0, 100, 68)
-    # проволочная петля-крючок: от кольца вниз к шарниру зажима
-    for side in (-1, 1):
-        w = c.line([(50 + side * 1.6, 8), (50 + side * 9, 22), (50 + side * 15, 33)], 2.6)
-        fill_soft(c, w, STEEL, height=1.0, amb=0.6, diff=0.55, spec=0.6, line_w=0.5, line_dark=0.5)
-    stem = c.rrect(47.2, 6, 52.8, 14, 2.6)
-    fill_cyl(c, stem, STEEL, amb=0.6, spec=0.6, line_w=0.5, line_dark=0.5)
+    (центр кольца — 8 единиц от верха) и чёрный канцелярский зажим, держащий верх листа.
+    hook=False — только сам зажим (100×40, верх на y=26) для большого листа рецепта: recipe_clip.png."""
+    c = Canvas(0, 0, 100, 68) if hook else Canvas(0, 26, 100, 66)
+    if hook:
+        # проволочная петля-крючок: от кольца вниз к шарниру зажима
+        for side in (-1, 1):
+            w = c.line([(50 + side * 1.6, 8), (50 + side * 9, 22), (50 + side * 15, 33)], 2.6)
+            fill_soft(c, w, STEEL, height=1.0, amb=0.6, diff=0.55, spec=0.6, line_w=0.5, line_dark=0.5)
+        stem = c.rrect(47.2, 6, 52.8, 14, 2.6)
+        fill_cyl(c, stem, STEEL, amb=0.6, spec=0.6, line_w=0.5, line_dark=0.5)
     # корпус зажима: трапеция, расширяется книзу, скруглённые углы
     xs_top, xs_bot, y0, y1 = 28, 40, 30, 62
     body = c.mask(lambda d, cc: d.rounded_rectangle([*cc.P(50 - xs_bot, y0), *cc.P(50 + xs_bot, y1)], radius=5 * K, fill=255))
@@ -107,9 +109,9 @@ def clip():
     # заклёпка по центру
     rv = c.ellipse(50 - 3.4, 46 - 3.4, 50 + 3.4, 46 + 3.4)
     fill_soft(c, rv, SCREW, height=1.0, amb=0.6, diff=0.6, spec=0.5, line_w=0.5, line_dark=0.45)
-    save(c, "order_clip.png")
+    save(c, "order_clip.png" if hook else "recipe_clip.png")
 
 
 if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
-    rod(); rod_end(); mount(); saddle(); ring(); clip()
+    rod(); rod_end(); mount(); saddle(); ring(); clip(); clip(hook=False)
