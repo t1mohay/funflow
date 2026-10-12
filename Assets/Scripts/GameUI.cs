@@ -15,27 +15,29 @@ namespace RecipeSlicer
     public sealed class GameUI : MonoBehaviour
     {
         /// <summary>Доля ширины экрана под каждую боковую панель; спавнер не залезает под них.</summary>
-        public const float SidePanelFraction = 0.21f;
+        public const float SidePanelFraction = 0.185f;
 
         public static readonly Color TextColor = new Color(1f, 0.96f, 0.9f);
         public static readonly Color GoodColor = new Color(0.56f, 0.93f, 0.45f);
         public static readonly Color BadColor = new Color(1f, 0.4f, 0.35f);
         public static readonly Color AccentColor = new Color(1f, 0.8f, 0.3f);
 
-        // HUD — непрозрачные панели в гамме проекта: тёплый графит в деревянной рамке, строки чуть светлее.
+        // HUD — панели в гамме проекта: тёплый графит в деревянной рамке, строки чуть светлее.
         static readonly Color PanelColor = new Color32(0x3B, 0x34, 0x30, 0xFF);    // тёплый графит
-        static readonly Color RowColor = new Color32(0x4C, 0x43, 0x3D, 0xFF);
-        static readonly Color RowDoneColor = new Color32(0x45, 0x61, 0x3D, 0xFF);  // глубокий шалфей
-        static readonly Color RowWrongColor = new Color32(0x5C, 0x37, 0x31, 0xFF); // приглушённая терракота
+        // Боковые списки полупрозрачные — сквозь них видна кухня; рамка у них непрозрачная.
+        static readonly Color SidePanelColor = new Color32(0x3B, 0x34, 0x30, 0xB8); // графит, 72 %
+        static readonly Color RowColor = new Color32(0x4C, 0x43, 0x3D, 0xC0);
+        static readonly Color RowDoneColor = new Color32(0x45, 0x61, 0x3D, 0xD0);  // глубокий шалфей
+        static readonly Color RowWrongColor = new Color32(0x5C, 0x37, 0x31, 0xC0); // приглушённая терракота
         static readonly Color CardColor = new Color(0.27f, 0.18f, 0.13f, 0.96f);
         static readonly Color ButtonColor = new Color(0.36f, 0.62f, 0.27f, 1f);
         static readonly Color SecondaryButtonColor = new Color(0.4f, 0.3f, 0.24f, 1f);
 
-        const float RowHeight = 90f;
-        const float RowGap = 9f;
+        const float RowHeight = 96f;
+        const float RowGap = 10f;
         /// <summary>Высота шапки боковой панели (заголовок) и нижний отступ — как в BuildSidePanel.</summary>
-        const float SidePanelTop = 106f;
-        const float SidePanelBottom = 20f;
+        const float SidePanelTop = 114f;
+        const float SidePanelBottom = 28f;
         const float DishBadgeSize = 136f;
         const float FloaterLife = 0.9f;
         const float CountdownLife = 0.65f;
@@ -477,7 +479,7 @@ namespace RecipeSlicer
             // По вертикали панель по центру экрана; высота задаётся в FitSidePanels по числу строк.
             var panel = Stretch(NewRect(name, parent), new Vector2(xMin, 0.5f), new Vector2(xMax, 0.5f),
                 new Vector2(xMin > 0f ? 8f : 16f, -300f), new Vector2(xMin > 0f ? -16f : -8f, 300f));
-            Framed(panel, PanelColor, 6f);
+            FramedClear(panel, SidePanelColor, 6f);
             AddText(Stretch(NewRect("Title", panel), new Vector2(0f, 1f), Vector2.one, new Vector2(18f, -SidePanelTop + 6f), new Vector2(-18f - titleRight, -14f)),
                 title, 46, titleColor, TextAnchor.MiddleCenter, FontStyle.Bold);
             return Stretch(NewRect("List", panel), Vector2.zero, Vector2.one, new Vector2(16f, SidePanelBottom), new Vector2(-16f, -SidePanelTop));
@@ -519,11 +521,11 @@ namespace RecipeSlicer
             rt.anchoredPosition = new Vector2(0f, -index * (RowHeight + RowGap) - RowHeight * 0.5f);
             var background = AddImage(rt, wrong ? RowWrongColor : RowColor, Art.RoundedRect);
 
-            var icon = Place(NewRect("Icon", rt), new Vector2(0f, 0.5f), new Vector2(48f, 0f), new Vector2(72f, 72f));
+            var icon = Place(NewRect("Icon", rt), new Vector2(0f, 0.5f), new Vector2(44f, 0f), new Vector2(70f, 70f));
             SetIcon(AddImage(icon, Color.white, null), def);
 
             // Высота поля — одна строка: при нехватке места название уменьшается, а не переносится.
-            var name = AddText(Stretch(NewRect("Name", rt), new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), new Vector2(94f, -30f), new Vector2(wrong ? -10f : -116f, 30f)),
+            var name = AddText(Stretch(NewRect("Name", rt), new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), new Vector2(86f, -30f), new Vector2(wrong ? -8f : -108f, 30f)),
                 def.Name, 42, TextColor, TextAnchor.MiddleLeft, FontStyle.Normal);
             FitSingleLine(name, 42, 18);
 
@@ -1782,6 +1784,30 @@ namespace RecipeSlicer
         /// Рамка в стиле главного меню: тёмный контур, объёмная деревянная рамка (тёмная нижняя кромка,
         /// светлая лицевая часть, блик сверху) и заливка. Возвращает картинку заливки.
         /// </summary>
+        /// <summary>Кольцо (скруглённая рамка без заливки) толщиной width с радиусом radius, в единицах холста.</summary>
+        static Image Ring(RectTransform rt, Color color, float radius, float width)
+        {
+            float scale = Art.RingRadius / Mathf.Max(radius, 1f);
+            var image = AddImage(rt, color, Art.RoundedRing(Mathf.RoundToInt(width * scale)));
+            image.pixelsPerUnitMultiplier = scale;
+            return image;
+        }
+
+        /// <summary>
+        /// Как Framed, но слои не лежат друг под другом: контур и деревянная рамка — кольца, заливка — только внутри.
+        /// Поэтому заливку можно делать полупрозрачной: сквозь неё видно фон, а не дерево рамки.
+        /// </summary>
+        static Image FramedClear(RectTransform rt, Color fill, float frame, float radius = 24f)
+        {
+            Ring(rt, MenuOutline, radius, 3f);
+            float inset = 3f + frame;
+            // Заливка на полпикселя заходит под рамку — без просвета на стыке.
+            var inner = Rounded(Stretch(NewRect("Fill", rt), Vector2.zero, Vector2.one, new Vector2(inset - 0.5f, inset - 0.5f), new Vector2(0.5f - inset, 0.5f - inset)),
+                fill, Mathf.Max(radius - inset, 4f));
+            Ring(Stretch(NewRect("Frame", rt), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f)), MenuFrame, radius - 3f, frame);
+            return inner;
+        }
+
         static Image Framed(RectTransform rt, Color fill, float frame, float radius = 24f)
         {
             Rounded(rt, MenuOutline, radius);

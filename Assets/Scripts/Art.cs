@@ -8,6 +8,7 @@ namespace RecipeSlicer
     {
         static Sprite _circle;
         static Sprite _roundedRect;
+        static readonly Dictionary<int, Sprite> Rings = new Dictionary<int, Sprite>();
         static Sprite _gradient;
         static Sprite[] _splats;
         static Sprite _gloss;
@@ -22,6 +23,7 @@ namespace RecipeSlicer
         {
             _circle = null;
             _roundedRect = null;
+            Rings.Clear();
             _gradient = null;
             _splats = null;
             _gloss = null;
@@ -278,6 +280,44 @@ namespace RecipeSlicer
             tex.Apply();
             _gradient = Sprite.Create(tex, new Rect(0, 0, 2, height), new Vector2(0.5f, 0.5f), height);
             return _gradient;
+        }
+
+        /// <summary>Радиус скругления у колец RoundedRing, в пикселях текстуры.</summary>
+        public const int RingRadius = 44;
+
+        /// <summary>
+        /// Скруглённая рамка без заливки (9-slice), толщиной thickness пикселей при радиусе RingRadius.
+        /// Нужна полупрозрачным панелям: под рамкой нет второго слоя, который просвечивал бы сквозь заливку.
+        /// </summary>
+        public static Sprite RoundedRing(int thickness)
+        {
+            thickness = Mathf.Clamp(thickness, 1, RingRadius);
+            if (!Rings.TryGetValue(thickness, out var sprite) || sprite == null)
+                Rings[thickness] = sprite = MakeRoundedRing(128, RingRadius, thickness);
+            return sprite;
+        }
+
+        static Sprite MakeRoundedRing(int size, int radius, int thickness)
+        {
+            var tex = NewTexture(size, size, "RoundedRing");
+            var pixels = new Color32[size * size];
+            float half = size * 0.5f;
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                // Знаковое расстояние до края скруглённого прямоугольника (внутри — отрицательное).
+                float qx = Mathf.Abs(x + 0.5f - half) - (half - radius);
+                float qy = Mathf.Abs(y + 0.5f - half) - (half - radius);
+                float outside = new Vector2(Mathf.Max(qx, 0f), Mathf.Max(qy, 0f)).magnitude;
+                float dist = outside + Mathf.Min(Mathf.Max(qx, qy), 0f) - radius;
+                float a = Mathf.Clamp01(0.5f - dist) * Mathf.Clamp01(dist + thickness + 0.5f);
+                pixels[y * size + x] = new Color32(255, 255, 255, (byte)(a * 255));
+            }
+            tex.SetPixels32(pixels);
+            tex.Apply();
+            float border = Mathf.Max(radius, thickness) + 2;
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0,
+                SpriteMeshType.FullRect, new Vector4(border, border, border, border));
         }
 
         static Sprite MakeRoundedRect(int size, int radius)
