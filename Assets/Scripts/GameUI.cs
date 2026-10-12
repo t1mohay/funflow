@@ -642,8 +642,11 @@ namespace RecipeSlicer
 
         // Размеры доски заказов — в единицах фона шириной OrderBoardWidth (фон 16:9 с запасом 4%).
         const float OrderBoardWidth = 1920f * 1.04f;
-        /// <summary>Высота оси перекладины на картинке фона, доля от её высоты: под бокалами и табличкой стеллажа.</summary>
-        const float OrderRailHeight = 0.405f;
+        /// <summary>
+        /// Высота оси перекладины на картинке фона, доля от её высоты: под бокалами и табличкой стеллажа.
+        /// Верх стены обрезан по полке, поэтому листы висят на той же высоте экрана, что и раньше (~190 px из 1080).
+        /// </summary>
+        const float OrderRailHeight = 0.179f;
         /// <summary>Во сколько раз доска крупнее своих размеров ниже: листы помещаются между рамками на стене.</summary>
         const float OrderBoardScale = 0.98f;
         const float OrderSpacing = 400f;
@@ -651,8 +654,8 @@ namespace RecipeSlicer
         const float OrderCardTop = -28f;
 
         // Перекладина и крепления — тёмный металл, как у стеллажа на фоне (спрайты UI/order_*.png,
-        // Tools/ArtGen/kitchen_wall/gen_order_rack.py), чуть притушены, как сам фон.
-        static readonly Color RailTint = new Color(0.78f, 0.78f, 0.8f);
+        // Tools/ArtGen/kitchen_wall/gen_order_rack.py). Фон на этом экране не затемняется — и они тоже.
+        static readonly Color RailTint = Color.white;
         // Запасной вариант без спрайтов — деревянная перекладина.
         static readonly Color RodColor = new Color32(0x6C, 0x3D, 0x1B, 0xFF);
         static readonly Color RodDark = new Color32(0x4D, 0x26, 0x0E, 0xFF);
@@ -992,7 +995,11 @@ namespace RecipeSlicer
             _mainScreen.SetActive(!visible);
             // Выбор заказа — на кухне (одна стена из плитки и стол); главное меню — на текучем фоне.
             if (_kitchenSprite != null && _wallSprite != null)
+            {
                 _menuBackgroundImage.sprite = visible ? _wallSprite : _kitchenSprite;
+                // Стена выбора заказа — без затемнения: на ней табличка «Выбор блюда» и детали кухни.
+                _menuBackgroundImage.color = visible ? Color.white : MenuTint;
+            }
             if (_menuSwirl != null)
             {
                 _menuSwirl.SetActive(!visible);

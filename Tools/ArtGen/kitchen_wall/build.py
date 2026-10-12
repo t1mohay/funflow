@@ -1,5 +1,6 @@
 """Шаг 2: нарисовать предметы на очищенной стене. Запуск после clean.py:
-    python clean.py && python build.py   ->  Assets/Resources/Kitchen/wall.png (2048×1144)"""
+    python clean.py && python build.py   ->  Assets/Resources/Kitchen/wall.png (2048×1144)
+Верх обрезан по низу полки, снизу дорисован стол (кадр экрана выбора заказа)."""
 import os, sys
 import numpy as np, cv2
 from PIL import Image
@@ -15,10 +16,12 @@ bg = Image.open(os.path.join(WORK, "clean_base.png")).convert("RGBA")
 clean = np.array(bg)
 
 
-def put(c, wall_shadow=None):
-    """wall_shadow: нижняя граница стены (px) — тень предмета на плитке, свет слева сверху."""
+def put(c, wall_shadow=None, dy=0):
+    """wall_shadow: нижняя граница стены (px) — тень предмета на плитке, свет слева сверху.
+    dy — сдвиг по вертикали в единицах исходника."""
     global bg
     im, (px, py) = c.to_image()
+    py += int(round(dy * S))
     W, H = bg.size
     # обрезка по краям фона
     x0, y0 = max(0, -px), max(0, -py)
@@ -43,7 +46,9 @@ def put(c, wall_shadow=None):
     bg.alpha_composite(im, (px, py))
 
 
-for c in O.wall_frames(): put(c)
+# рамки и доска опущены, чтобы после обрезки верха не упирались в край кадра
+FRAMES_DY = 22
+for c in O.wall_frames(): put(c, dy=FRAMES_DY)
 for c in O.glass_holders(): put(c)
 for c in O.glasses(): put(c)
 put(O.hanging_sign())
@@ -55,5 +60,21 @@ arr[95*S:103*S, 206*S:828*S] = clean[95*S:103*S, 206*S:828*S]
 bg = Image.fromarray(arr)
 for c in front: put(c)
 for c in O.counter_objects(): put(c, wall_shadow=COUNTER)
-bg.convert("RGB").save(OUT)
-print("saved", os.path.normpath(OUT), bg.size)
+# ── кадр для экрана выбора заказа: верх обрезан ровно по низу полки (полка уходит за край,
+# в кадре — бокалы, плющ и табличка), снизу столько же дорисовано столешницей — пропорции прежние.
+CROP = int(round(131.5 * S))
+arr = np.array(bg.convert("RGB"))
+H = arr.shape[0]
+PLANK0, PLANK1 = int(525 * S), int(552 * S)          # одна доска передней стенки стола (со стыком)
+plank = clean[PLANK0:PLANK1, :, :3].astype(np.float32)   # доска без предметов
+period = PLANK1 - PLANK0
+extra = []
+y = PLANK1
+while y < H + CROP:
+    k = (y - PLANK1) // period
+    extra.append(np.clip(plank * (0.97 - 0.035 * k), 0, 255))      # ниже — чуть темнее, как в тени
+    y += period
+ext = np.concatenate(extra, 0)[:H + CROP - PLANK1].astype(np.uint8)
+arr = np.concatenate([arr[:PLANK1], ext], 0)[CROP:CROP + H]
+Image.fromarray(arr).save(OUT)
+print("saved", os.path.normpath(OUT), arr.shape[1], "x", arr.shape[0])
