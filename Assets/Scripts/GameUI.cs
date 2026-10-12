@@ -1491,6 +1491,8 @@ namespace RecipeSlicer
             button.colors = colors;
             if (click) button.onClick.AddListener(() => _uiClick?.Invoke());
             button.onClick.AddListener(onClick);
+            // при наведении — тонкая рамка цвета кнопки, штрихи бегут по часовой стрелке
+            HoverRing.Attach(rt, HoverRing.ColorFor(fill.color));
         }
 
         /// <summary>Строка «подпись — ползунок с мельницей — значение».</summary>
@@ -1794,6 +1796,7 @@ namespace RecipeSlicer
             button.colors = colors;
             if (click) button.onClick.AddListener(() => _uiClick?.Invoke());
             button.onClick.AddListener(onClick);
+            HoverRing.Attach(rt, HoverRing.ColorFor(color));
         }
     }
 }
