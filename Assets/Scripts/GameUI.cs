@@ -1072,20 +1072,17 @@ namespace RecipeSlicer
                     $"× {item.Count}", 34, MenuGreenText, TextAnchor.MiddleRight, FontStyle.Bold);
             }
 
-            // ── правило-шутка: цитата великого философа на светлой подложке с большой кавычкой
+            // ── правило-шутка: цитата великого философа на светлой подложке с зелёной полоской
             var quote = TopLeft(paper, 50f, 676f, 50f, 140f);
             Rounded(quote, QuoteBack, 18f);
             Rounded(Stretch(NewRect("Bar", quote), Vector2.zero, new Vector2(0f, 1f), new Vector2(0f, 12f), new Vector2(8f, -12f)), MenuGreen, 4f);
-            var mark = AddText(Place(NewRect("Mark", quote), new Vector2(0f, 1f), new Vector2(56f, -92f), new Vector2(80f, 110f)),
-                "“", 120, new Color(MenuGreen.r, MenuGreen.g, MenuGreen.b, 0.35f), TextAnchor.MiddleCenter, FontStyle.Bold);
-            mark.GetComponent<Shadow>().enabled = false;
-            MenuText(Stretch(NewRect("Intro", quote), new Vector2(0f, 1f), Vector2.one, new Vector2(100f, -46f), new Vector2(-24f, -10f)),
+            MenuText(Stretch(NewRect("Intro", quote), new Vector2(0f, 1f), Vector2.one, new Vector2(36f, -46f), new Vector2(-24f, -10f)),
                 RulesIntro, 26, MenuBrownText, TextAnchor.MiddleLeft, FontStyle.Italic);
-            var words = MenuText(Stretch(NewRect("Quote", quote), new Vector2(0f, 1f), Vector2.one, new Vector2(100f, -104f), new Vector2(-24f, -48f)),
+            var words = MenuText(Stretch(NewRect("Quote", quote), new Vector2(0f, 1f), Vector2.one, new Vector2(36f, -104f), new Vector2(-24f, -48f)),
                 RulesQuote, 38, MenuBrownText, TextAnchor.MiddleLeft, FontStyle.Bold);
             words.supportRichText = true;
             FitSingleLine(words, 38, 24);
-            MenuText(Stretch(NewRect("Author", quote), Vector2.zero, new Vector2(1f, 0f), new Vector2(100f, 6f), new Vector2(-28f, 40f)),
+            MenuText(Stretch(NewRect("Author", quote), Vector2.zero, new Vector2(1f, 0f), new Vector2(36f, 6f), new Vector2(-28f, 40f)),
                 RulesAuthor, 24, MenuGreenText, TextAnchor.MiddleRight, FontStyle.Italic);
 
             // ── кнопки
