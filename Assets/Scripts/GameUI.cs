@@ -205,6 +205,15 @@ namespace RecipeSlicer
             UpdateTimer(round);
         }
 
+        /// <summary>
+        /// Кнопка паузы на уровне: прячется, когда раунд уже закончен (секунда с баннером перед итогами) —
+        /// пауза в это время не ставится, и кнопка нажималась бы впустую.
+        /// </summary>
+        public void SetPauseAvailable(bool available)
+        {
+            if (_pauseButton != null) _pauseButton.SetActive(available);
+        }
+
         public void ShowResults(RoundState round, int best, bool newBest)
         {
             _results.SetActive(true);

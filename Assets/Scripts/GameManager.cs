@@ -332,6 +332,7 @@ namespace RecipeSlicer
         {
             FlushCombo();
             _state = State.Finishing;
+            _ui.SetPauseAvailable(false);
             _stateTimer = 1.3f;
             _ui.ShowBanner(banner, color, 1.3f);
             _ui.UpdateTimer(_round);
