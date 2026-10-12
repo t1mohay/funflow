@@ -31,7 +31,8 @@ namespace RecipeSlicer
     ///  9. Музыка в лобби           PlayMusic(MusicTrack.Lobby)       Music/lobby_loop
     /// 10. Отсчёт 3 секунды         PlayCountdownTick()    Countdown/countdown_tick
     ///                              PlayCountdownGo()      Countdown/countdown_go
-    ///     Клик в меню              PlayClick()            UI/click (пока — заглушка)
+    ///     Клик по кнопке           PlayClick()            UI/click_01..03 (мягкий синтезаторный «плак», случайная вариация)
+    ///     Лист рецепта             PlayPaper()            UI/paper_unfold_01..02 (открытие и закрытие листа)
     /// </summary>
     public sealed class Sfx : MonoBehaviour
     {
@@ -75,6 +76,8 @@ namespace RecipeSlicer
         AudioLowPassFilter _swipeFilter;
         AudioClip _swipeLoop;
         float _swipeVolume, _swipeCutoff = SwipeCutoffSlow;
+        AudioClip[] _paperClips;
+        float _lastClickTime = -1f;
         AudioClip[] _launchClips, _swipeClips, _missClips, _overflowClips, _errorClips, _counterSteps, _clickClips;
         AudioClip[] _timerTicks; // индекс = секунд осталось (1..5)
         AudioClip _timerEnd, _countdownTick, _countdownGo, _taskFull, _taskShort, _lobbyMusic, _roundMusic;
@@ -142,6 +145,7 @@ namespace RecipeSlicer
             _overflowClips = LoadSet("Overflow/overflow_", 3);
             _errorClips = LoadSet("Error/error_", 3);
             _clickClips = LoadSet("UI/click_", 3);
+            _paperClips = LoadSet("UI/paper_unfold_", 2);
             _counterSteps = LoadSet("Counter/counter_step_", 10, keepGaps: true);
 
             _timerTicks = new AudioClip[6];
@@ -332,9 +336,21 @@ namespace RecipeSlicer
 
         // ───────────────────────── Интерфейс ─────────────────────────
 
+        /// <summary>
+        /// Клик по кнопке — случайная из трёх вариаций. Кнопки играют его сами (GameUI.MakeButtonOn),
+        /// а действия вроде «Заново» вызывают ещё раз — повтор в пределах 50 мс пропускается, чтобы не было двойного звука.
+        /// </summary>
         public void PlayClick()
         {
-            if (!PlayRandom(_clickClips, 0.35f)) Play(_click, 0.35f, 0.05f);
+            if (Time.unscaledTime - _lastClickTime < 0.05f) return;
+            _lastClickTime = Time.unscaledTime;
+            if (!PlayRandom(_clickClips, 0.5f)) Play(_click, 0.35f, 0.05f);
+        }
+
+        /// <summary>Шелест разворачиваемого (или сворачиваемого) листа рецепта.</summary>
+        public void PlayPaper()
+        {
+            if (!PlayRandom(_paperClips, 0.6f)) PlayClick();
         }
 
         // ───────────────────────── 8–9. Музыка ─────────────────────────

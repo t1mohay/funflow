@@ -106,9 +106,13 @@ namespace RecipeSlicer
         Text _resTitle, _resScore, _resStars, _resDetails, _resVerdict, _resBest;
         Image _resIcon;
 
+        /// <summary>Звук клика для всех кнопок (статические помощники кнопок не видят _game).</summary>
+        static System.Action _uiClick;
+
         public void Init(GameManager game, Camera cam)
         {
             _game = game;
+            _uiClick = () => _game.Sfx.PlayClick();
             _cam = cam;
             _font = Art.UIFont;
             EnsureEventSystem();
@@ -735,18 +739,14 @@ namespace RecipeSlicer
         void OrderCard(RectTransform board, RecipeDef recipe, float x)
         {
             var center = new Vector2(0.5f, 0.5f);
-            UnityAction open = () =>
-            {
-                _game.Sfx.PlayClick();
-                OpenRecipeSheet(recipe);
-            };
+            UnityAction open = () => OpenRecipeSheet(recipe);   // звук бумаги играет сам лист
 
             var cardPosition = new Vector2(x, OrderCardTop - OrderCardSize.y * 0.5f);
             DropShadow(board, center, cardPosition, OrderCardSize);
             var card = Place(NewRect(recipe.Title, board), center, cardPosition, OrderCardSize);
             var fill = Framed(card, PaperEdge, 12f);
             Rounded(Stretch(NewRect("Paper", fill.rectTransform), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f)), PaperColor, 6f);
-            MakeButtonOn(card, fill, open);
+            MakeButtonOn(card, fill, open, click: false);
 
             // Картинка блюда — по центру листа, чуть ниже, чтобы её не закрывал зажим.
             var dish = Art.DishSprite(recipe);
@@ -779,7 +779,7 @@ namespace RecipeSlicer
             DropShadow(board, center, buttonPosition, buttonSize);
             var button = Place(NewRect("Choose", board), center, buttonPosition, buttonSize);
             var face = Beveled(button, MenuGreen, 6f);
-            MakeButtonOn(button, face, open);
+            MakeButtonOn(button, face, open, click: false);
             MenuText(Fill(NewRect("Label", face.rectTransform)), "Выбрать ▶", 36, MenuLightText, TextAnchor.MiddleCenter, FontStyle.Bold)
                 .GetComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 0.35f);
         }
@@ -833,17 +833,13 @@ namespace RecipeSlicer
         }
 
         /// <summary>Маленькая кремовая кнопка в рамке.</summary>
-        void SmallButton(RectTransform parent, Vector2 position, Vector2 size, string text, UnityAction onClick, Vector2? anchor = null)
+        void SmallButton(RectTransform parent, Vector2 position, Vector2 size, string text, UnityAction onClick, Vector2? anchor = null, bool click = true)
         {
             var at = anchor ?? new Vector2(0.5f, 0.5f);
             DropShadow(parent, at, position, size);
             var rt = Place(NewRect(text, parent), at, position, size);
             var face = Beveled(rt, MenuCream, 6f);
-            MakeButtonOn(rt, face, () =>
-            {
-                _game.Sfx.PlayClick();
-                onClick();
-            });
+            MakeButtonOn(rt, face, onClick, click);
             MenuText(Fill(NewRect("Label", face.rectTransform)), text, 36, MenuBrownText, TextAnchor.MiddleCenter, FontStyle.Bold);
         }
 
@@ -890,7 +886,7 @@ namespace RecipeSlicer
 
         void ShowDishSelect(bool visible)
         {
-            CloseRecipeSheet();
+            CloseRecipeSheet(silent: true);
             _dishScreen.SetActive(visible);
             _mainScreen.SetActive(!visible);
             // Выбор заказа — на кухне (одна стена из плитки и стол); главное меню — на текучем фоне.
@@ -998,7 +994,8 @@ namespace RecipeSlicer
         /// </summary>
         void OpenRecipeSheet(RecipeDef recipe)
         {
-            CloseRecipeSheet();
+            CloseRecipeSheet(silent: true);
+            _game.Sfx.PlayPaper();
             _sheetRecipe = recipe;
             var center = new Vector2(0.5f, 0.5f);
 
@@ -1008,11 +1005,7 @@ namespace RecipeSlicer
             // иначе клик по листу тоже дошёл бы до этой кнопки.
             var dimRect = Fill(NewRect("Dim", overlay));
             AddImage(dimRect, new Color(0f, 0f, 0f, 0.55f), null).raycastTarget = true;
-            dimRect.gameObject.AddComponent<Button>().onClick.AddListener(() =>
-            {
-                _game.Sfx.PlayClick();
-                CloseRecipeSheet();
-            });
+            dimRect.gameObject.AddComponent<Button>().onClick.AddListener(() => CloseRecipeSheet());   // звук бумаги
 
             var holder = Place(NewRect("Holder", overlay), center, new Vector2(0f, -10f), RecipeSheetSize);
             DropShadow(holder, center, Vector2.zero, RecipeSheetSize);
@@ -1086,19 +1079,18 @@ namespace RecipeSlicer
                 RulesAuthor, 24, MenuGreenText, TextAnchor.MiddleRight, FontStyle.Italic);
 
             // ── кнопки
-            SmallButton(holder, new Vector2(-270f, -RecipeSheetSize.y * 0.5f + 85f), new Vector2(280f, 96f), "← Назад", CloseRecipeSheet);
-            MenuButton(holder, new Vector2(150f, -RecipeSheetSize.y * 0.5f + 85f), "Начать готовку ▶", true, () =>
-            {
-                _game.Sfx.PlayClick();
-                _game.StartRound(recipe);
-            }, new Vector2(500f, 110f));
+            SmallButton(holder, new Vector2(-270f, -RecipeSheetSize.y * 0.5f + 85f), new Vector2(280f, 96f), "← Назад", () => CloseRecipeSheet(), click: false);
+            MenuButton(holder, new Vector2(150f, -RecipeSheetSize.y * 0.5f + 85f), "Начать готовку ▶", true,
+                () => _game.StartRound(recipe), new Vector2(500f, 110f));
 
             StartCoroutine(PopIn(holder));
         }
 
-        void CloseRecipeSheet()
+        /// <param name="silent">Без звука бумаги — когда лист убирается вместе с экраном или сразу открывается другой.</param>
+        void CloseRecipeSheet(bool silent = false)
         {
             if (_recipeSheet == null) return;
+            if (!silent) _game.Sfx.PlayPaper();
             Destroy(_recipeSheet);
             _recipeSheet = null;
             _sheetRecipe = null;
@@ -1484,7 +1476,8 @@ namespace RecipeSlicer
         }
 
         /// <summary>Кнопка на уже нарисованной рамке: подсвечивается заливка, клики ловит вся рамка.</summary>
-        static void MakeButtonOn(RectTransform rt, Image fill, UnityAction onClick)
+        /// <param name="click">Играть общий звук клика. Выключено у кнопок листа рецепта — у них звук бумаги.</param>
+        static void MakeButtonOn(RectTransform rt, Image fill, UnityAction onClick, bool click = true)
         {
             var hit = rt.GetComponent<Image>();
             hit.raycastTarget = true;
@@ -1496,6 +1489,7 @@ namespace RecipeSlicer
             colors.pressedColor = new Color(0.8f, 0.8f, 0.8f);
             colors.selectedColor = Color.white;
             button.colors = colors;
+            if (click) button.onClick.AddListener(() => _uiClick?.Invoke());
             button.onClick.AddListener(onClick);
         }
 
@@ -1786,7 +1780,7 @@ namespace RecipeSlicer
             return label;
         }
 
-        void MakeButton(RectTransform rt, Color color, UnityAction onClick)
+        void MakeButton(RectTransform rt, Color color, UnityAction onClick, bool click = true)
         {
             var image = AddImage(rt, color, Art.RoundedRect);
             image.raycastTarget = true;
@@ -1798,6 +1792,7 @@ namespace RecipeSlicer
             colors.pressedColor = new Color(0.75f, 0.75f, 0.75f);
             colors.selectedColor = Color.white;
             button.colors = colors;
+            if (click) button.onClick.AddListener(() => _uiClick?.Invoke());
             button.onClick.AddListener(onClick);
         }
     }
