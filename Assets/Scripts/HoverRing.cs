@@ -23,6 +23,11 @@ namespace RecipeSlicer
         public float Speed = 2.2f;
         /// <summary>Время появления и исчезновения, с.</summary>
         public float Fade = 0.15f;
+        /// <summary>
+        /// Насколько заливка заходит внутрь от линии рамки — до самого края кнопки (это отступ рамки),
+        /// чтобы между кнопкой и обводкой не было просвета.
+        /// </summary>
+        public float Inner;
 
         const float Step = 2f;   // шаг разбиения контура — плавные переливы цвета
 
@@ -44,6 +49,7 @@ namespace RecipeSlicer
             var ring = go.AddComponent<HoverRing>();
             ring.color = color;
             ring.raycastTarget = false;
+            ring.Inner = offset;
             button.gameObject.AddComponent<HoverRingTrigger>().Ring = ring;
             return ring;
         }
@@ -122,6 +128,8 @@ namespace RecipeSlicer
             deep.a = warm.a = vein.a = gloss.a = baseColor.a;
 
             float halfT = Thickness * 0.5f;
+            // Внутренний край — у самой кнопки: от неё до наружной кромки рамки сплошная заливка.
+            float inside = Mathf.Max(halfT, Inner);
             for (int i = 0; i < n; i++)
             {
                 float a = dist[i] / perimeter * Mathf.PI * 2f;
@@ -139,7 +147,7 @@ namespace RecipeSlicer
                 var outerColor = Color.Lerp(c, deep, 0.25f);
                 outerColor.a = c.a;
                 Color32 outer = outerColor;
-                vh.AddVert(points[i] - normals[i] * halfT, inner, Vector2.zero);
+                vh.AddVert(points[i] - normals[i] * inside, inner, Vector2.zero);
                 vh.AddVert(points[i] + normals[i] * halfT, outer, Vector2.zero);
             }
             for (int i = 0; i < n; i++)

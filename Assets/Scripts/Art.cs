@@ -9,6 +9,7 @@ namespace RecipeSlicer
         static Sprite _circle;
         static Sprite _roundedRect;
         static Sprite _gradient;
+        static Sprite[] _splats;
         static Sprite _gloss;
         static Font _font;
         static Font _defaultFont;
@@ -22,6 +23,7 @@ namespace RecipeSlicer
             _circle = null;
             _roundedRect = null;
             _gradient = null;
+            _splats = null;
             _gloss = null;
             _font = null;
             _defaultFont = null;
@@ -149,6 +151,94 @@ namespace RecipeSlicer
             }
             half.OverrideGeometry(vertices, triangles);
             return half;
+        }
+
+        /// <summary>Сколько разных клякс-брызг (Splat).</summary>
+        public const int SplatVariants = 4;
+
+        /// <summary>
+        /// Белая клякса сока — пятно с неровным краем, острыми «лучами» и каплями вокруг.
+        /// Красится цветом ингредиента (SpriteRenderer.color). Диаметр — 1 юнит.
+        /// </summary>
+        public static Sprite Splat(int variant)
+        {
+            if (_splats == null) _splats = new Sprite[SplatVariants];
+            variant = Mathf.Abs(variant) % SplatVariants;
+            if (_splats[variant] == null) _splats[variant] = MakeSplat(256, 1234 + variant * 7919);
+            return _splats[variant];
+        }
+
+        static Sprite MakeSplat(int size, int seed)
+        {
+            var rng = new System.Random(seed);
+            float Rand(float a, float b) => a + (float)rng.NextDouble() * (b - a);
+
+            // Край пятна: радиус зависит от угла (несколько синусоид) плюс острые лучи-потёки.
+            const int waves = 4;
+            var waveK = new int[waves];
+            var waveAmp = new float[waves];
+            var wavePhase = new float[waves];
+            for (int i = 0; i < waves; i++)
+            {
+                waveK[i] = 2 + i * 2 + rng.Next(2);
+                waveAmp[i] = Rand(0.008f, 0.022f);
+                wavePhase[i] = Rand(0f, Mathf.PI * 2f);
+            }
+            int spikes = 7 + rng.Next(5);
+            var spikeAngle = new float[spikes];
+            var spikeLength = new float[spikes];
+            var spikeWidth = new float[spikes];
+            for (int i = 0; i < spikes; i++)
+            {
+                spikeAngle[i] = Rand(0f, Mathf.PI * 2f);
+                spikeLength[i] = Rand(0.05f, 0.17f);
+                spikeWidth[i] = Rand(0.12f, 0.3f);
+            }
+            // Капли: часть — продолжение лучей, часть — просто вокруг пятна.
+            int drops = 14 + rng.Next(8);
+            var drop = new Vector3[drops];
+            for (int i = 0; i < drops; i++)
+            {
+                float angle = i < spikes ? spikeAngle[i] + Rand(-0.08f, 0.08f) : Rand(0f, Mathf.PI * 2f);
+                float dist = Rand(0.36f, 0.46f);
+                drop[i] = new Vector3(Mathf.Cos(angle) * dist, Mathf.Sin(angle) * dist, Rand(0.01f, 0.032f));
+            }
+
+            const float baseRadius = 0.27f;
+            float px = 1f / size;
+            var tex = NewTexture(size, size, "Splat");
+            var pixels = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = (x + 0.5f) * px - 0.5f;
+                float v = (y + 0.5f) * px - 0.5f;
+                float r = Mathf.Sqrt(u * u + v * v);
+                float theta = Mathf.Atan2(v, u);
+
+                float edge = baseRadius;
+                for (int i = 0; i < waves; i++) edge += waveAmp[i] * Mathf.Sin(waveK[i] * theta + wavePhase[i]);
+                for (int i = 0; i < spikes; i++)
+                {
+                    float d = Mathf.Abs(Mathf.DeltaAngle(theta * Mathf.Rad2Deg, spikeAngle[i] * Mathf.Rad2Deg)) * Mathf.Deg2Rad;
+                    float k = Mathf.Clamp01(1f - d / spikeWidth[i]);
+                    edge += spikeLength[i] * k * k * k;
+                }
+                float a = Mathf.Clamp01((edge - r) / (1.5f * px) + 0.5f);
+
+                for (int i = 0; i < drops; i++)
+                {
+                    float du = u - drop[i].x, dv = v - drop[i].y;
+                    float dd = Mathf.Sqrt(du * du + dv * dv);
+                    a = Mathf.Max(a, Mathf.Clamp01((drop[i].z - dd) / (1.5f * px) + 0.5f));
+                }
+                // Сок в середине чуть плотнее, к краям — прозрачнее.
+                a *= Mathf.Lerp(1f, 0.82f, Mathf.Clamp01(r / 0.45f));
+                pixels[y * size + x] = new Color32(255, 255, 255, (byte)(a * 255));
+            }
+            tex.SetPixels32(pixels);
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
         }
 
         static Sprite MakeCircle(int size)

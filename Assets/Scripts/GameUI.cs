@@ -557,6 +557,8 @@ namespace RecipeSlicer
         GameObject _menuSwirl;
         Image _menuBackgroundImage;
         Sprite _kitchenSprite, _wallSprite;
+        /// <summary>Качающиеся предметы стены выбора заказа (табличка, бокалы, плющ) — поверх картинки стены.</summary>
+        GameObject _wallLayers;
         float _menuBackgroundAspect = 1280f / 853f;
 
         /// <summary>Открыт выбор блюда (работают клавиши 1/2/3).</summary>
@@ -579,6 +581,7 @@ namespace RecipeSlicer
             // Для выбора заказа — своя стена кухни со стеллажом, рамками и табличкой «Выбор блюда»
             // (Tools/ArtGen/kitchen_wall). Пропорции у неё свои — LayoutMenuBackground берёт их из текущего спрайта.
             _wallSprite = Art.LoadSprite("Kitchen/wall");
+            if (_wallSprite != null) BuildWallLayers();
             if (background == null) bg.color = CardColor;
             else _menuBackgroundAspect = background.rect.width / background.rect.height;
 
@@ -994,6 +997,7 @@ namespace RecipeSlicer
             _dishScreen.SetActive(visible);
             _mainScreen.SetActive(!visible);
             // Выбор заказа — на кухне (одна стена из плитки и стол); главное меню — на текучем фоне.
+            if (_wallLayers != null) _wallLayers.SetActive(visible);
             if (_kitchenSprite != null && _wallSprite != null)
             {
                 _menuBackgroundImage.sprite = visible ? _wallSprite : _kitchenSprite;
@@ -1008,6 +1012,54 @@ namespace RecipeSlicer
         }
 
         void ShowCredits(bool visible) => _creditsScreen.SetActive(visible);
+
+        [System.Serializable]
+        sealed class WallLayerInfo
+        {
+            public string name;
+            public float x, y, w, h, pivotX, pivotY, amp, period, phase;
+        }
+
+        [System.Serializable]
+        sealed class WallLayerList
+        {
+            public float width, height;
+            public WallLayerInfo[] layers;
+        }
+
+        /// <summary>
+        /// Табличка «Выбор блюда», бокалы и плети плюща нарисованы генератором стены отдельными картинками
+        /// (Kitchen/WallLayers, места — Kitchen/wall_layers.json). Кладём их поверх стены в тех же местах,
+        /// в пикселях картинки стены, и покачиваем вокруг точки подвеса (WallSway).
+        /// </summary>
+        void BuildWallLayers()
+        {
+            var json = Resources.Load<TextAsset>("Kitchen/wall_layers");
+            if (json == null) return;
+            var list = JsonUtility.FromJson<WallLayerList>(json.text);
+            if (list?.layers == null || list.width <= 0f || list.height <= 0f) return;
+
+            var container = Fill(NewRect("WallLayers", _menuBackground));
+            _wallLayers = container.gameObject;
+            foreach (var info in list.layers)
+            {
+                var sprite = Art.LoadSprite("Kitchen/WallLayers/" + info.name);
+                if (sprite == null || info.w <= 0f || info.h <= 0f) continue;
+                var rt = NewRect(info.name, container);
+                // Якоря — прямоугольник слоя в долях стены (y картинки идёт сверху вниз), точка вращения — подвес.
+                rt.anchorMin = new Vector2(info.x / list.width, 1f - (info.y + info.h) / list.height);
+                rt.anchorMax = new Vector2((info.x + info.w) / list.width, 1f - info.y / list.height);
+                rt.pivot = new Vector2((info.pivotX - info.x) / info.w, 1f - (info.pivotY - info.y) / info.h);
+                rt.offsetMin = rt.offsetMax = Vector2.zero;
+                var image = AddImage(rt, Color.white, null);
+                image.sprite = sprite;
+                var sway = rt.gameObject.AddComponent<WallSway>();
+                sway.Amplitude = info.amp;
+                sway.Period = info.period;
+                sway.Phase = info.phase;
+            }
+            _wallLayers.SetActive(false);
+        }
 
         /// <summary>Esc в меню: закрыть верхний экран. Возвращает true, если что-то закрылось.</summary>
         public bool MenuBack()

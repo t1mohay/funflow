@@ -110,6 +110,7 @@ namespace RecipeSlicer
         {
             ClearPause();
             ClearIngredients();
+            _fx.ClearSplats();
             _recipe = recipe;
             _round = new RoundState(recipe);
             _spawner.Reset();
@@ -182,6 +183,7 @@ namespace RecipeSlicer
         {
             ClearPause();
             ClearIngredients();
+            _fx.ClearSplats();
             _state = State.Menu;
             _ui.ShowMenu(dishSelect);
             Sfx.PlayMusic(MusicTrack.Lobby);
@@ -416,6 +418,8 @@ namespace RecipeSlicer
             ingredient.Slice(direction);
 
             _fx.Burst(position, def.Color, result == SliceResult.Wrong ? 10 : 16);
+            // Клякса сока на стене за ингредиентом — в его цвете (как в Fruit Ninja).
+            _fx.SplatAt(position, def.Color, ingredient.HitRadius * 3.2f);
             Sfx.PlayChop(def.Id);
             Vector3 textPos = position + Vector2.up * 0.6f;
 

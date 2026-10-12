@@ -581,6 +581,21 @@ def glasses():
     return out
 
 
+def glass_feet():
+    """Точки подвеса бокалов (центр подставки) — в том же порядке, что glasses()."""
+    back = [(cx + (10.5 if i < 3 else -9.5), 139.4) for i, cx in enumerate(FRONT_GLASSES)]
+    return back + [(cx, 138.6) for cx in FRONT_GLASSES]
+
+
+def ivy_pivots():
+    """Точки подвеса плетей плюща (край горшка, откуда они свисают) — в порядке shelf_objects()[1]."""
+    return [(262 - 15, 94), (769 + 15, 94)]
+
+
+# Табличка «Выбор блюда»: середина между цепочками, у балки.
+SIGN_PIVOT = (512, 146.5)
+
+
 def hanging_sign(text="Выбор блюда"):
     x0, x1, y0, y1 = 420, 604, 163, 200
     c = Canvas(x0 - 4, 140, x1 + 6, y1 + 6)
