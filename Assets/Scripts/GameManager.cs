@@ -206,7 +206,7 @@ namespace RecipeSlicer
                     for (int i = 0; i < Recipes.All.Length; i++)
                     {
                         if (!InputUtil.DishPressed(i)) continue;
-                        StartRound(Recipes.All[i]);
+                        _ui.DishHotkey(Recipes.All[i]); // первое нажатие — лист рецепта, второе — готовка
                         break;
                     }
                     break;

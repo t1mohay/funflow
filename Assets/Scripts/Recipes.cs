@@ -47,6 +47,8 @@ namespace RecipeSlicer
         public string ReadyText;
         public string FailText;
         public string Description;
+        /// <summary>Краткая история блюда — для листа рецепта перед готовкой.</summary>
+        public string Lore;
         public int Stars;
         public float RoundTime = 60f;
         public RecipeItem[] Needed;
@@ -122,6 +124,8 @@ namespace RecipeSlicer
             ReadyText = "Салат готов!",
             FailText = "Салат не готов!",
             Description = "Свежий овощной.\nПроще простого.",
+            Lore = "Говорят, первый салат придумал повар, которому было лень разжигать плиту. " +
+                   "С тех пор это блюдо для тех, кто ценит хруст и честность: только свежие овощи — и ни одной конфеты.",
             Stars = 1,
             Needed = new[]
             {
@@ -147,6 +151,8 @@ namespace RecipeSlicer
             ReadyText = "Пицца готова!",
             FailText = "Пицца не готова!",
             Description = "Сырная, с грибами.\nАнанас? Подумай.",
+            Lore = "Пицца родом из Неаполя: когда-то её пекли для портовых рабочих, а теперь её любит весь мир. " +
+                   "Настоящий пиццайоло знает — ананасу здесь не место, и спорить об этом можно вечно.",
             Stars = 2,
             Needed = new[]
             {
@@ -173,6 +179,8 @@ namespace RecipeSlicer
             ReadyText = "Том Ям готов!",
             FailText = "Том Ям не готов!",
             Description = "Острый тайский суп.\nКартошку не клади!",
+            Lore = "Кисло-острый суп из Таиланда, где в каждой ложке — лемонграсс, лайм и креветки. " +
+                   "Тайские повара уверены: от хорошего Том Яма плачут — но от остроты, а не от картошки в тарелке.",
             Stars = 3,
             Needed = new[]
             {

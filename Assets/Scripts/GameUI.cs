@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
@@ -102,7 +103,6 @@ namespace RecipeSlicer
         float _bannerAge = 99f, _bannerDuration, _countdownAge = 99f;
         readonly List<Row> _rows = new List<Row>();
         readonly List<Floater> _floaters = new List<Floater>();
-        readonly List<Text> _bestLabels = new List<Text>();
         Text _resTitle, _resScore, _resStars, _resDetails, _resVerdict, _resBest;
         Image _resIcon;
 
@@ -152,13 +152,6 @@ namespace RecipeSlicer
             _countdown.text = "";
             _creditsScreen.SetActive(false);
             ShowDishSelect(dishSelect);
-
-            var all = Recipes.All;
-            for (int i = 0; i < all.Length; i++)
-            {
-                int best = _game.BestScore(all[i]);
-                _bestLabels[i].text = best >= 0 ? $"Рекорд: {best}/100" : "Ещё не готовили";
-            }
         }
 
         public void ShowPause(bool visible)
@@ -543,7 +536,10 @@ namespace RecipeSlicer
         };
 
         GameObject _mainScreen, _dishScreen, _creditsScreen;
-        RectTransform _menuBackground;
+        RectTransform _menuBackground, _dishBoard;
+        GameObject _menuSwirl;
+        Image _menuBackgroundImage;
+        Sprite _kitchenSprite, _wallSprite;
         float _menuBackgroundAspect = 1280f / 853f;
 
         /// <summary>Открыт выбор блюда (работают клавиши 1/2/3).</summary>
@@ -561,6 +557,10 @@ namespace RecipeSlicer
             var background = Art.LoadSprite("Kitchen/background");
             var bg = AddImage(_menuBackground, MenuTint, null);
             bg.sprite = background;
+            _menuBackgroundImage = bg;
+            _kitchenSprite = background;
+            // Для выбора заказа — та же кухня, но только стена из плитки (Tools/ArtGen/gen_dish_wall.py).
+            _wallSprite = Art.LoadSprite("Kitchen/wall");
             if (background == null) bg.color = CardColor;
             else _menuBackgroundAspect = background.rect.width / background.rect.height;
 
@@ -570,6 +570,7 @@ namespace RecipeSlicer
             {
                 var fluid = AddImage(Fill(NewRect("Swirl", menu)), Color.white, null);
                 fluid.material = swirl;
+                _menuSwirl = fluid.gameObject;
                 _menuBackground.gameObject.SetActive(false);
             }
 
@@ -603,52 +604,184 @@ namespace RecipeSlicer
         {
             var dishes = Fill(NewRect("Dishes", menu));
             _dishScreen = dishes.gameObject;
-            BigTitle(dishes, "Выбери блюдо", new Vector2(0f, 380f));
+
+            // Доска заказов привязана к фону кухни (LayoutMenuBackground): висит на стене
+            // и масштабируется вместе с фоном. Ноль по вертикали — ось перекладины.
+            _dishBoard = NewRect("Board", dishes);
+            _dishBoard.anchorMin = _dishBoard.anchorMax = new Vector2(0.5f, 1f);
+            _dishBoard.pivot = new Vector2(0.5f, 0.5f);
+            _dishBoard.sizeDelta = Vector2.zero;
+
+            OrderRail(_dishBoard);
+            OrderSign(_dishBoard, "Выбери заказ", new Vector2(0f, 68f), new Vector2(600f, 90f));
 
             var all = Recipes.All;
-            const float cardWidth = 400f, gap = 50f;
             for (int i = 0; i < all.Length; i++)
-            {
-                var recipe = all[i];
-                float x = (i - (all.Length - 1) * 0.5f) * (cardWidth + gap);
-                DishCard(dishes, recipe, new Vector2(x, 20f), new Vector2(cardWidth, 520f));
-                var best = Place(NewRect("Best", dishes), new Vector2(0.5f, 0.5f), new Vector2(x, -290f), new Vector2(cardWidth, 50f));
-                _bestLabels.Add(AddText(best, "", 32, TextColor, TextAnchor.MiddleCenter, FontStyle.Bold));
-            }
+                OrderCard(_dishBoard, all[i], (i - (all.Length - 1) * 0.5f) * OrderSpacing);
 
-            SmallButton(dishes, new Vector2(-760f, -400f), new Vector2(240f, 90f), "← Назад", () => ShowDishSelect(false));
+            SmallButton(dishes, new Vector2(150f, 90f), new Vector2(240f, 90f), "← Назад", () => ShowDishSelect(false), Vector2.zero);
         }
 
-        /// <summary>Карточка блюда: рамка, картинка, название и кнопка «Готовить». Кликается вся карточка.</summary>
-        void DishCard(RectTransform parent, RecipeDef recipe, Vector2 position, Vector2 size)
+        // Размеры доски заказов — в единицах фона шириной OrderBoardWidth (фон 16:9 с запасом 4%).
+        const float OrderBoardWidth = 1920f * 1.04f;
+        /// <summary>Высота оси перекладины на картинке фона, доля от её высоты.</summary>
+        const float OrderRailHeight = 0.151f;
+        /// <summary>Во сколько раз доска крупнее своих размеров ниже.</summary>
+        const float OrderBoardScale = 1.155f;
+        const float OrderSpacing = 400f;
+        static readonly Vector2 OrderCardSize = new Vector2(300f, 340f);
+        const float OrderCardTop = -28f;
+
+        // Перекладина и кронштейны — как нарисованные на фоне, с тем же затемнением, что у фона.
+        static readonly Color RodColor = new Color32(0x6C, 0x3D, 0x1B, 0xFF);
+        static readonly Color RodDark = new Color32(0x4D, 0x26, 0x0E, 0xFF);
+        static readonly Color RodLight = new Color32(0x86, 0x55, 0x2C, 0xFF);
+        static readonly Color BracketColor = new Color32(0x35, 0x2B, 0x26, 0xFF);
+        static readonly Color BracketLight = new Color32(0x55, 0x4A, 0x44, 0xFF);
+        // Прищепки — светлый металл.
+        static readonly Color ClipColor = new Color32(0x5C, 0x5C, 0x63, 0xFF);
+        static readonly Color ClipDark = new Color32(0x2E, 0x2E, 0x33, 0xFF);
+        static readonly Color ClipLight = new Color32(0x9A, 0x9A, 0xA3, 0xFF);
+        static readonly Color PaperColor = new Color32(0xFC, 0xF9, 0xF2, 0xFF);
+        static readonly Color PaperEdge = new Color32(0xE4, 0xDC, 0xCB, 0xFF);
+        static readonly Color SignWood = new Color32(0xE8, 0xB4, 0x68, 0xFF);
+
+        /// <summary>
+        /// Деревянная перекладина во всю доску, прикрученная к стене: за ней — железные пластины на шурупах,
+        /// перекладина проходит сквозь держатели, на плитку падает тень.
+        /// </summary>
+        static void OrderRail(RectTransform board)
         {
-            DropShadow(parent, new Vector2(0.5f, 0.5f), position, size);
-            var card = Place(NewRect(recipe.Title, parent), new Vector2(0.5f, 0.5f), position, size);
-            var fill = Framed(card, MenuCream, 10f);
-            MakeButtonOn(card, fill, () =>
+            const float halfLength = 620f, thickness = 22f;
+            var center = new Vector2(0.5f, 0.5f);
+            // Крайние пластины — за крайними листами, средние — посередине промежутков между листами.
+            var mounts = new[] { -595f, -OrderSpacing * 0.5f, OrderSpacing * 0.5f, 595f };
+            var plateSize = new Vector2(36f, 86f);
+            const float plateY = -8f;
+
+            // Тени на стене: мягкая полоса под перекладиной и под каждой пластиной.
+            Rounded(Place(NewRect("RodShadowSoft", board), center, new Vector2(4f, -15f), new Vector2(halfLength * 2f + 10f, 30f)),
+                new Color(0f, 0f, 0f, 0.12f), 15f);
+            Rounded(Place(NewRect("RodShadow", board), center, new Vector2(3f, -12f), new Vector2(halfLength * 2f, 18f)),
+                new Color(0f, 0f, 0f, 0.22f), 9f);
+            foreach (float x in mounts)
+                Rounded(Place(NewRect("PlateShadow", board), center, new Vector2(x + 5f, plateY - 7f), plateSize + new Vector2(6f, 4f)),
+                    new Color(0f, 0f, 0f, 0.3f), 9f);
+
+            // Пластины на стене — позади перекладины, по шурупу сверху и снизу.
+            foreach (float x in mounts)
+            {
+                var plate = Place(NewRect("Plate", board), center, new Vector2(x, plateY), plateSize);
+                Rounded(plate, ClipDark, 7f);
+                var face = Rounded(Stretch(NewRect("Face", plate), Vector2.zero, Vector2.one, new Vector2(2f, 3f), new Vector2(-2f, -2f)), BracketColor, 6f);
+                Rounded(Stretch(NewRect("Shine", face.rectTransform), new Vector2(0f, 1f), Vector2.one, new Vector2(4f, -5f), new Vector2(-4f, -2f)),
+                    new Color(1f, 1f, 1f, 0.12f), 2f);
+                foreach (float y in new[] { 30f, -30f })
+                {
+                    var screw = Place(NewRect("Screw", plate), center, new Vector2(0f, y), new Vector2(12f, 12f));
+                    AddImage(screw, ClipDark, Art.Circle).type = Image.Type.Simple;
+                    AddImage(Stretch(NewRect("Head", screw), Vector2.zero, Vector2.one, new Vector2(2f, 2f), new Vector2(-2f, -2f)), BracketLight, Art.Circle)
+                        .type = Image.Type.Simple;
+                }
+            }
+
+            // Сама перекладина с набалдашниками на концах.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var knob = Place(NewRect("Knob", board), center, new Vector2(side * halfLength, 0f), new Vector2(30f, 30f));
+                AddImage(knob, RodDark, Art.Circle).type = Image.Type.Simple;
+                AddImage(Stretch(NewRect("Face", knob), Vector2.zero, Vector2.one, new Vector2(3f, 4f), new Vector2(-3f, -2f)), RodColor, Art.Circle)
+                    .type = Image.Type.Simple;
+                AddImage(Place(NewRect("Shine", knob), center, new Vector2(-3f, 5f), new Vector2(9f, 7f)), RodLight, Art.Circle).type = Image.Type.Simple;
+            }
+            var rod = Place(NewRect("Rod", board), center, Vector2.zero, new Vector2(halfLength * 2f - 20f, thickness));
+            Rounded(rod, RodDark, thickness * 0.5f);
+            Rounded(Stretch(NewRect("Face", rod), Vector2.zero, Vector2.one, new Vector2(2f, 4f), new Vector2(-2f, -1f)), RodColor, thickness * 0.4f);
+            Rounded(Stretch(NewRect("Shine", rod), new Vector2(0f, 0.55f), Vector2.one, new Vector2(6f, 0f), new Vector2(-6f, -4f)), RodLight, 3f);
+
+            // Держатели: железное кольцо вокруг перекладины на каждой пластине.
+            foreach (float x in mounts)
+            {
+                var holder = Place(NewRect("Holder", board), center, new Vector2(x, 0f), new Vector2(26f, thickness + 12f));
+                Rounded(holder, ClipDark, 6f);
+                var face = Rounded(Stretch(NewRect("Face", holder), Vector2.zero, Vector2.one, new Vector2(2f, 3f), new Vector2(-2f, -2f)), BracketColor, 5f);
+                Rounded(Stretch(NewRect("Shine", face.rectTransform), new Vector2(0f, 0.6f), Vector2.one, new Vector2(3f, 0f), new Vector2(-3f, -2f)),
+                    BracketLight, 2f);
+            }
+        }
+
+        /// <summary>Деревянная табличка с двумя шурупами по краям.</summary>
+        void OrderSign(RectTransform board, string text, Vector2 position, Vector2 size)
+        {
+            DropShadow(board, new Vector2(0.5f, 0.5f), position, size, 20f);
+            var sign = Place(NewRect("Sign", board), new Vector2(0.5f, 0.5f), position, size);
+            var face = Framed(sign, SignWood, 8f, 20f);
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var screw = Place(NewRect("Screw", sign), new Vector2(0.5f, 0.5f), new Vector2(side * (size.x * 0.5f - 30f), 0f), new Vector2(18f, 18f));
+                AddImage(screw, ClipDark, Art.Circle).type = Image.Type.Simple;
+                AddImage(Stretch(NewRect("Head", screw), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f)), ClipLight, Art.Circle)
+                    .type = Image.Type.Simple;
+            }
+            var label = MenuText(Stretch(NewRect("Label", face.rectTransform), Vector2.zero, Vector2.one, new Vector2(50f, 0f), new Vector2(-50f, 0f)),
+                text, 56, MenuGreenText, TextAnchor.MiddleCenter, FontStyle.Bold);
+            FitSingleLine(label, 56, 30); // всегда в одну строку, между шурупами
+        }
+
+        /// <summary>
+        /// Заказ: лист с картинкой блюда в деревянной рамке на прищепке и кнопка «Выбрать» под ним.
+        /// И кнопка, и сам лист открывают лист рецепта (OpenRecipeSheet).
+        /// </summary>
+        void OrderCard(RectTransform board, RecipeDef recipe, float x)
+        {
+            var center = new Vector2(0.5f, 0.5f);
+            UnityAction open = () =>
             {
                 _game.Sfx.PlayClick();
-                _game.StartRound(recipe);
-            });
+                OpenRecipeSheet(recipe);
+            };
 
+            var cardPosition = new Vector2(x, OrderCardTop - OrderCardSize.y * 0.5f);
+            DropShadow(board, center, cardPosition, OrderCardSize);
+            var card = Place(NewRect(recipe.Title, board), center, cardPosition, OrderCardSize);
+            var fill = Framed(card, PaperEdge, 12f);
+            Rounded(Stretch(NewRect("Paper", fill.rectTransform), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f)), PaperColor, 6f);
+            MakeButtonOn(card, fill, open);
+
+            // Картинка блюда — по центру листа, чуть ниже, чтобы её не закрывал зажим.
             var dish = Art.DishSprite(recipe);
             if (dish != null)
             {
-                var image = AddImage(Place(NewRect("Dish", card), new Vector2(0.5f, 1f), new Vector2(0f, -170f), new Vector2(290f, 290f)), Color.white, null);
-                image.sprite = dish;
+                var image = AddImage(Place(NewRect("Dish", card), center, new Vector2(0f, -10f), new Vector2(250f, 250f)), Color.white, dish);
+                image.type = Image.Type.Simple;
                 image.preserveAspect = true;
             }
-            MenuText(Place(NewRect("Name", card), new Vector2(0.5f, 0f), new Vector2(0f, 150f), new Vector2(size.x - 40f, 70f)),
-                recipe.Title, 52, MenuBrownText, TextAnchor.MiddleCenter, FontStyle.Bold);
 
-            // «Готовить» — оформление; нажатие ловит вся карточка.
-            var cookPosition = new Vector2(0f, 68f);
-            var cookSize = new Vector2(size.x - 90f, 84f);
-            DropShadow(card, new Vector2(0.5f, 0f), cookPosition, cookSize);
-            var cook = Place(NewRect("Cook", card), new Vector2(0.5f, 0f), cookPosition, cookSize);
-            var face = Beveled(cook, MenuGreen, 6f);
-            MenuText(Fill(NewRect("Label", face.rectTransform)), "▶  Готовить", 38, MenuLightText, TextAnchor.MiddleCenter, FontStyle.Bold);
-            foreach (var graphic in cook.GetComponentsInChildren<Graphic>()) graphic.raycastTarget = false;
+            // Прищепка: кольцо на перекладине, ножка и зажим, который держит верх листа.
+            var stem = Place(NewRect("ClipStem", board), center, new Vector2(x, -22f), new Vector2(20f, 48f));
+            Rounded(stem, ClipDark, 4f);
+            Rounded(Stretch(NewRect("Face", stem), Vector2.zero, Vector2.one, new Vector2(3f, 0f), new Vector2(-3f, 0f)), ClipColor, 3f);
+            var ring = Place(NewRect("ClipRing", board), center, new Vector2(x, 0f), new Vector2(42f, 42f));
+            AddImage(ring, ClipDark, Art.Circle).type = Image.Type.Simple;
+            AddImage(Stretch(NewRect("Face", ring), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f)), ClipColor, Art.Circle)
+                .type = Image.Type.Simple;
+            AddImage(Place(NewRect("Rivet", ring), center, new Vector2(0f, 2f), new Vector2(14f, 14f)), ClipLight, Art.Circle).type = Image.Type.Simple;
+
+            var clamp = Place(NewRect("Clamp", board), center, new Vector2(x, OrderCardTop - 6f), new Vector2(96f, 46f));
+            Rounded(clamp, ClipDark, 10f);
+            var clampFace = Rounded(Stretch(NewRect("Face", clamp), Vector2.zero, Vector2.one, new Vector2(3f, 5f), new Vector2(-3f, -3f)), ClipColor, 8f);
+            Rounded(Stretch(NewRect("Shine", clampFace.rectTransform), new Vector2(0f, 0.55f), Vector2.one, new Vector2(8f, 0f), new Vector2(-8f, -3f)),
+                new Color(1f, 1f, 1f, 0.3f), 4f);
+
+            // Кнопка чуть заходит на низ рамки, как на макете.
+            var buttonPosition = new Vector2(x, OrderCardTop - OrderCardSize.y - 30f);
+            var buttonSize = new Vector2(260f, 80f);
+            DropShadow(board, center, buttonPosition, buttonSize);
+            var button = Place(NewRect("Choose", board), center, buttonPosition, buttonSize);
+            var face = Beveled(button, MenuGreen, 6f);
+            MakeButtonOn(button, face, open);
+            MenuText(Fill(NewRect("Label", face.rectTransform)), "Выбрать ▶", 36, MenuLightText, TextAnchor.MiddleCenter, FontStyle.Bold)
+                .GetComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 0.35f);
         }
 
         /// <summary>Крупный заголовок, как «Пауза»: тёмно-зелёный с кремовой обводкой.</summary>
@@ -700,10 +833,11 @@ namespace RecipeSlicer
         }
 
         /// <summary>Маленькая кремовая кнопка в рамке.</summary>
-        void SmallButton(RectTransform parent, Vector2 position, Vector2 size, string text, UnityAction onClick)
+        void SmallButton(RectTransform parent, Vector2 position, Vector2 size, string text, UnityAction onClick, Vector2? anchor = null)
         {
-            DropShadow(parent, new Vector2(0.5f, 0.5f), position, size);
-            var rt = Place(NewRect(text, parent), new Vector2(0.5f, 0.5f), position, size);
+            var at = anchor ?? new Vector2(0.5f, 0.5f);
+            DropShadow(parent, at, position, size);
+            var rt = Place(NewRect(text, parent), at, position, size);
             var face = Beveled(rt, MenuCream, 6f);
             MakeButtonOn(rt, face, () =>
             {
@@ -756,8 +890,17 @@ namespace RecipeSlicer
 
         void ShowDishSelect(bool visible)
         {
+            CloseRecipeSheet();
             _dishScreen.SetActive(visible);
             _mainScreen.SetActive(!visible);
+            // Выбор заказа — на кухне (одна стена из плитки и стол); главное меню — на текучем фоне.
+            if (_kitchenSprite != null && _wallSprite != null)
+                _menuBackgroundImage.sprite = visible ? _wallSprite : _kitchenSprite;
+            if (_menuSwirl != null)
+            {
+                _menuSwirl.SetActive(!visible);
+                _menuBackground.gameObject.SetActive(visible);
+            }
         }
 
         void ShowCredits(bool visible) => _creditsScreen.SetActive(visible);
@@ -767,6 +910,7 @@ namespace RecipeSlicer
         {
             if (CloseSettings()) return true;
             if (_creditsScreen.activeSelf) { ShowCredits(false); return true; }
+            if (RecipeSheetOpen) { CloseRecipeSheet(); return true; }
             if (_dishScreen.activeSelf) { ShowDishSelect(false); return true; }
             return false;
         }
@@ -789,6 +933,9 @@ namespace RecipeSlicer
             float w = Mathf.Max(size.x, size.y * _menuBackgroundAspect) * 1.04f;
             _menuBackground.sizeDelta = new Vector2(w, w / _menuBackgroundAspect);
             _menuBackground.anchoredPosition = new Vector2(0f, size.y * 0.01f);
+            // Доска заказов: ось перекладины — на нарисованной перекладине, масштаб — как у фона.
+            _dishBoard.anchoredPosition = new Vector2(0f, size.y * 0.01f - _menuBackground.sizeDelta.y * OrderRailHeight);
+            _dishBoard.localScale = Vector3.one * (w / OrderBoardWidth * OrderBoardScale);
         }
 
         void BuildResults()
@@ -829,6 +976,162 @@ namespace RecipeSlicer
             MakeButtonOn(rt, face, onClick);
             AddText(Fill(NewRect("Label", face.rectTransform)), text, 38, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
         }
+
+        // ───────────────────────── Лист рецепта ─────────────────────────
+
+        // Правило игры — цитатой «великого философа»: что делать — зелёным, чего не делать — красным.
+        const string RulesIntro = "Правила просты, их завещал великий философ:";
+        const string RulesQuote = "«<color=#3F7F1F>Как надо — делай</color>, <color=#B3362A>как не надо — не делай</color>»";
+        const string RulesAuthor = "— Великий философ";
+        static readonly Color QuoteBack = new Color32(0xEF, 0xE4, 0xCC, 0xFF);
+        static readonly Vector2 RecipeSheetSize = new Vector2(1000f, 1000f);
+
+        GameObject _recipeSheet;
+        RecipeDef _sheetRecipe;
+
+        /// <summary>Открыт лист рецепта на экране выбора заказа.</summary>
+        public bool RecipeSheetOpen => _recipeSheet != null;
+
+        /// <summary>
+        /// Лист рецепта поверх доски заказов: название, картинка и история блюда, нужные ингредиенты,
+        /// правило-шутка и кнопки «Начать готовку» / «Назад». Строится заново при каждом открытии.
+        /// </summary>
+        void OpenRecipeSheet(RecipeDef recipe)
+        {
+            CloseRecipeSheet();
+            _sheetRecipe = recipe;
+            var center = new Vector2(0.5f, 0.5f);
+
+            var overlay = Fill(NewRect("RecipeSheet", (RectTransform)_dishScreen.transform));
+            _recipeSheet = overlay.gameObject;
+            // Затемнение ловит клики: нажатие мимо листа закрывает его. Лист — не его потомок,
+            // иначе клик по листу тоже дошёл бы до этой кнопки.
+            var dimRect = Fill(NewRect("Dim", overlay));
+            AddImage(dimRect, new Color(0f, 0f, 0f, 0.55f), null).raycastTarget = true;
+            dimRect.gameObject.AddComponent<Button>().onClick.AddListener(() =>
+            {
+                _game.Sfx.PlayClick();
+                CloseRecipeSheet();
+            });
+
+            var holder = Place(NewRect("Holder", overlay), center, new Vector2(0f, -10f), RecipeSheetSize);
+            DropShadow(holder, center, Vector2.zero, RecipeSheetSize);
+            var sheet = Place(NewRect("Sheet", holder), center, Vector2.zero, RecipeSheetSize);
+            var edge = Framed(sheet, PaperEdge, 14f);
+            edge.raycastTarget = true; // клики по самому листу не закрывают его
+            var paper = Rounded(Stretch(NewRect("Paper", edge.rectTransform), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f)),
+                PaperColor, 8f).rectTransform;
+
+            // Зажим сверху — как у листов на доске, только крупнее.
+            var clamp = Place(NewRect("Clamp", holder), new Vector2(0.5f, 1f), new Vector2(0f, -4f), new Vector2(170f, 64f));
+            Rounded(clamp, ClipDark, 14f);
+            var clampFace = Rounded(Stretch(NewRect("Face", clamp), Vector2.zero, Vector2.one, new Vector2(4f, 7f), new Vector2(-4f, -4f)), ClipColor, 11f);
+            Rounded(Stretch(NewRect("Shine", clampFace.rectTransform), new Vector2(0f, 0.55f), Vector2.one, new Vector2(12f, 0f), new Vector2(-12f, -4f)),
+                new Color(1f, 1f, 1f, 0.3f), 5f);
+
+            // ── верх: название и история слева, картинка справа
+            var title = MenuText(TopLeft(paper, 60f, 48f, 330f, 84f), recipe.Title, 68, MenuGreenText, TextAnchor.MiddleLeft, FontStyle.Bold);
+            FitSingleLine(title, 68, 36);
+            var lore = MenuText(TopLeft(paper, 60f, 140f, 330f, 222f), recipe.Lore ?? recipe.Description, 30, MenuBrownText,
+                TextAnchor.UpperLeft, FontStyle.Normal);
+            lore.resizeTextForBestFit = true;
+            lore.resizeTextMinSize = 20;
+            lore.resizeTextMaxSize = 30;
+            lore.lineSpacing = 1.05f;
+
+            var dish = Art.DishSprite(recipe);
+            if (dish != null)
+            {
+                var image = AddImage(Place(NewRect("Dish", paper), new Vector2(1f, 1f), new Vector2(-180f, -185f), new Vector2(250f, 250f)), Color.white, dish);
+                image.type = Image.Type.Simple;
+                image.preserveAspect = true;
+            }
+
+            // Разделитель — тонкая линия, как сгиб бумаги.
+            Rounded(TopLeft(paper, 50f, 370f, 50f, 4f), PaperEdge, 2f);
+
+            // ── ингредиенты: в две колонки, с картинкой и количеством
+            MenuText(TopLeft(paper, 60f, 380f, 60f, 54f), "Понадобится:", 38, MenuGreenText, TextAnchor.MiddleLeft, FontStyle.Bold);
+            const float rowTop = 438f, rowHeight = 56f;
+            int perColumn = (recipe.Needed.Length + 1) / 2;
+            for (int i = 0; i < recipe.Needed.Length; i++)
+            {
+                var item = recipe.Needed[i];
+                int column = i / perColumn, row = i % perColumn;
+                var line = Stretch(NewRect(item.Ingredient.Name, paper), new Vector2(column * 0.5f, 1f), new Vector2(column * 0.5f + 0.5f, 1f),
+                    new Vector2(column == 0 ? 70f : 30f, -rowTop - (row + 1) * rowHeight), new Vector2(column == 0 ? -30f : -70f, -rowTop - row * rowHeight));
+                var icon = Place(NewRect("Icon", line), new Vector2(0f, 0.5f), new Vector2(28f, 0f), new Vector2(56f, 56f));
+                var sprite = Art.IngredientSprite(item.Ingredient);
+                var iconImage = AddImage(icon, sprite != null ? Color.white : item.Ingredient.Color, sprite != null ? sprite : Art.Circle);
+                iconImage.type = Image.Type.Simple;
+                iconImage.preserveAspect = true;
+                var name = MenuText(Stretch(NewRect("Name", line), Vector2.zero, Vector2.one, new Vector2(70f, 0f), new Vector2(-90f, 0f)),
+                    item.Ingredient.Name, 34, MenuBrownText, TextAnchor.MiddleLeft, FontStyle.Bold);
+                FitSingleLine(name, 34, 20);
+                MenuText(Stretch(NewRect("Count", line), new Vector2(1f, 0f), Vector2.one, new Vector2(-90f, 0f), Vector2.zero),
+                    $"× {item.Count}", 34, MenuGreenText, TextAnchor.MiddleRight, FontStyle.Bold);
+            }
+
+            // ── правило-шутка: цитата великого философа на светлой подложке с большой кавычкой
+            var quote = TopLeft(paper, 50f, 676f, 50f, 140f);
+            Rounded(quote, QuoteBack, 18f);
+            Rounded(Stretch(NewRect("Bar", quote), Vector2.zero, new Vector2(0f, 1f), new Vector2(0f, 12f), new Vector2(8f, -12f)), MenuGreen, 4f);
+            var mark = AddText(Place(NewRect("Mark", quote), new Vector2(0f, 1f), new Vector2(56f, -92f), new Vector2(80f, 110f)),
+                "“", 120, new Color(MenuGreen.r, MenuGreen.g, MenuGreen.b, 0.35f), TextAnchor.MiddleCenter, FontStyle.Bold);
+            mark.GetComponent<Shadow>().enabled = false;
+            MenuText(Stretch(NewRect("Intro", quote), new Vector2(0f, 1f), Vector2.one, new Vector2(100f, -46f), new Vector2(-24f, -10f)),
+                RulesIntro, 26, MenuBrownText, TextAnchor.MiddleLeft, FontStyle.Italic);
+            var words = MenuText(Stretch(NewRect("Quote", quote), new Vector2(0f, 1f), Vector2.one, new Vector2(100f, -104f), new Vector2(-24f, -48f)),
+                RulesQuote, 38, MenuBrownText, TextAnchor.MiddleLeft, FontStyle.Bold);
+            words.supportRichText = true;
+            FitSingleLine(words, 38, 24);
+            MenuText(Stretch(NewRect("Author", quote), Vector2.zero, new Vector2(1f, 0f), new Vector2(100f, 6f), new Vector2(-28f, 40f)),
+                RulesAuthor, 24, MenuGreenText, TextAnchor.MiddleRight, FontStyle.Italic);
+
+            // ── кнопки
+            SmallButton(holder, new Vector2(-270f, -RecipeSheetSize.y * 0.5f + 85f), new Vector2(280f, 96f), "← Назад", CloseRecipeSheet);
+            MenuButton(holder, new Vector2(150f, -RecipeSheetSize.y * 0.5f + 85f), "Начать готовку ▶", true, () =>
+            {
+                _game.Sfx.PlayClick();
+                _game.StartRound(recipe);
+            }, new Vector2(500f, 110f));
+
+            StartCoroutine(PopIn(holder));
+        }
+
+        void CloseRecipeSheet()
+        {
+            if (_recipeSheet == null) return;
+            Destroy(_recipeSheet);
+            _recipeSheet = null;
+            _sheetRecipe = null;
+        }
+
+        /// <summary>
+        /// Клавиша блюда (1/2/3) на экране выбора: открывает его лист, а если этот лист уже открыт — начинает готовку.
+        /// </summary>
+        public void DishHotkey(RecipeDef recipe)
+        {
+            if (_sheetRecipe == recipe) _game.StartRound(recipe);
+            else OpenRecipeSheet(recipe);
+        }
+
+        /// <summary>Лист «выпрыгивает»: быстро вырастает из чуть меньшего размера.</summary>
+        static IEnumerator PopIn(RectTransform rt)
+        {
+            const float duration = 0.18f;
+            for (float t = 0f; t < duration && rt != null; t += Time.unscaledDeltaTime)
+            {
+                float k = 1f - Mathf.Pow(1f - t / duration, 3f);
+                rt.localScale = Vector3.one * Mathf.Lerp(0.85f, 1f, k);
+                yield return null;
+            }
+            if (rt != null) rt.localScale = Vector3.one;
+        }
+
+        /// <summary>Прямоугольник от верхнего края родителя: отступы слева/справа, отступ сверху и высота.</summary>
+        static RectTransform TopLeft(RectTransform parent, float left, float top, float right, float height) =>
+            Stretch(NewRect("Block", parent), new Vector2(0f, 1f), Vector2.one, new Vector2(left, -top - height), new Vector2(-right, -top));
 
         // ───────────────────────── Меню паузы ─────────────────────────
 

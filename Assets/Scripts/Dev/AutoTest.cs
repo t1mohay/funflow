@@ -31,6 +31,15 @@ namespace RecipeSlicer
             yield return new WaitForSecondsRealtime(0.5f);
             Shot("01b_dishes");
             yield return null;
+            var ui = FindAnyObjectByType<GameUI>();
+            for (int r = 0; r < Recipes.All.Length; r++)
+            {
+                ui.DishHotkey(Recipes.All[r]);
+                yield return new WaitForSecondsRealtime(0.5f);
+                Shot("01c_recipe_" + Recipes.All[r].Id);
+                yield return null;
+            }
+            yield return null;
             yield return null;
             game.StartRound(Recipes.All[2]);
             yield return new WaitForSecondsRealtime(0.4f);
