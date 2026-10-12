@@ -1612,6 +1612,7 @@ namespace RecipeSlicer
             {
                 GameSettings.Save();
                 InputUtil.SaveBindings();
+                SaveGraphics();
                 _settingsJustSaved = true;
                 RefreshSettingsUI();
             });
@@ -1683,7 +1684,7 @@ namespace RecipeSlicer
         {
             _settingsFromPause = fromPause;
             _settingsJustSaved = false;
-            RefreshGraphicsLabels();
+            SyncGraphicsFromScreen();
             ShowSettingsTab(0);
             _pauseScreen.SetActive(false);
             _settingsScreen.SetActive(true);
@@ -1707,6 +1708,7 @@ namespace RecipeSlicer
             GameSettings.Load();
             InputUtil.RevertBindings();
             ApplyBrightness();
+            RevertGraphics();
             _settingsJustSaved = false;
             RefreshSettingsUI();
         }
@@ -1723,7 +1725,7 @@ namespace RecipeSlicer
         void RefreshSettingsStatus()
         {
             if (_settingsStatus == null) return;
-            bool unsaved = GameSettings.HasUnsavedChanges() || InputUtil.HasUnsavedChanges();
+            bool unsaved = GameSettings.HasUnsavedChanges() || InputUtil.HasUnsavedChanges() || GraphicsChanged;
             if (unsaved) _settingsJustSaved = false;
             _settingsStatus.text = unsaved ? "Есть несохранённые изменения" : _settingsJustSaved ? "Настройки сохранены" : "";
             _settingsStatus.color = unsaved ? new Color(1f, 0.72f, 0.6f) : MenuLightText;
@@ -2032,8 +2034,51 @@ namespace RecipeSlicer
 
         int FindCurrentResolution()
         {
-            int index = _resolutions.IndexOf(new Vector2Int(Screen.width, Screen.height));
-            return index >= 0 ? index : _resolutions.Count - 1;
+            var current = new Vector2Int(Screen.width, Screen.height);
+            int index = _resolutions.IndexOf(current);
+            if (index >= 0) return index;
+            // Окно растянули мышью или размер не из списка монитора — показываем его как есть, а не «самое большое».
+            if (current.x > 0 && current.y > 0)
+            {
+                _resolutions.Add(current);
+                _resolutions.Sort((a, b) => a.x != b.x ? a.x.CompareTo(b.x) : a.y.CompareTo(b.y));
+                return _resolutions.IndexOf(current);
+            }
+            return _resolutions.Count - 1;
+        }
+
+        // Разрешение и режим, с которыми открыли настройки (или последние сохранённые): «Назад» возвращает к ним.
+        int _savedResolutionIndex, _savedWindowModeIndex;
+
+        bool GraphicsChanged => _resolutions.Count > 0
+            && (_resolutionIndex != _savedResolutionIndex || _windowModeIndex != _savedWindowModeIndex);
+
+        /// <summary>
+        /// При открытии настроек — взять фактические разрешение и режим: их могли сменить в обход меню
+        /// (Alt+Enter, растягивание окна), и подписи иначе показывали бы устаревшее.
+        /// </summary>
+        void SyncGraphicsFromScreen()
+        {
+            CollectResolutions();
+            SaveGraphics();
+            RefreshGraphicsLabels();
+        }
+
+        void SaveGraphics()
+        {
+            _savedResolutionIndex = _resolutionIndex;
+            _savedWindowModeIndex = _windowModeIndex;
+        }
+
+        /// <summary>«Назад» без сохранения: вернуть разрешение и режим, если их меняли.</summary>
+        void RevertGraphics()
+        {
+            if (!GraphicsChanged) return;
+            _resolutionIndex = _savedResolutionIndex;
+            _windowModeIndex = _savedWindowModeIndex;
+            var size = _resolutions[_resolutionIndex];
+            Screen.SetResolution(size.x, size.y, WindowModes[_windowModeIndex].Mode);
+            RefreshGraphicsLabels();
         }
 
         /// <summary>По кругу: за последним значением снова первое, перед первым — последнее.</summary>
@@ -2065,6 +2110,7 @@ namespace RecipeSlicer
             Screen.SetResolution(size.x, size.y, WindowModes[_windowModeIndex].Mode);
             _game.Sfx.PlayClick();
             RefreshGraphicsLabels();
+            RefreshSettingsStatus();
         }
 
         void RefreshGraphicsLabels()
