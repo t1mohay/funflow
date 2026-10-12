@@ -46,6 +46,8 @@ namespace RecipeSlicer
         int _countdownStep;
         int _lastTickSecond;
         int _comboSize;
+        /// <summary>Раунд пройден кодом Конами — рекорд за него не записываем.</summary>
+        bool _cheated;
         float _comboAge;
         Vector3 _comboPosition;
 
@@ -113,6 +115,8 @@ namespace RecipeSlicer
             _spawner.Reset();
             _lastTickSecond = -1;
             _comboSize = 0;
+            _cheated = false;
+            InputUtil.ResetKonami();
             _comboAge = ComboWindow;
             _countdownStep = -1;
             _stateTimer = 0f;
@@ -213,11 +217,21 @@ namespace RecipeSlicer
 
                 case State.Countdown:
                     if (HandleRoundKeys()) return;
+                    if (InputUtil.KonamiEntered())
+                    {
+                        CompleteWithKonami();
+                        return;
+                    }
                     UpdateCountdown();
                     break;
 
                 case State.Playing:
                     if (HandleRoundKeys()) return;
+                    if (InputUtil.KonamiEntered())
+                    {
+                        CompleteWithKonami();
+                        return;
+                    }
                     UpdatePlaying();
                     break;
 
@@ -321,13 +335,25 @@ namespace RecipeSlicer
             _ui.UpdateTimer(_round);
         }
 
+        /// <summary>↑ ↑ ↓ ↓ ← → ← → B A: уровень пропускается, показывается идеальный результат.</summary>
+        void CompleteWithKonami()
+        {
+            _cheated = true;
+            _comboSize = 0;
+            ClearIngredients();
+            _round.CompletePerfectly();
+            _ui.OnSliced(null, _round);
+            Sfx.PlayComplete();
+            FinishRound("Код Конами! Идеальное блюдо", GameUI.AccentColor);
+        }
+
         void ShowResults()
         {
             ClearIngredients();
             int best = BestScore(_recipe);
             bool newBest = false;
-            // Рекорд засчитывается только за готовое блюдо.
-            if (_round.IsComplete)
+            // Рекорд засчитывается только за готовое блюдо и не за код Конами.
+            if (_round.IsComplete && !_cheated)
             {
                 int score = _round.Score;
                 newBest = score > best && score > 0;

@@ -115,6 +115,17 @@ namespace RecipeSlicer
             return bonus;
         }
 
+        /// <summary>Код Конами: весь рецепт собран без единой ошибки — ровно 100 очков.</summary>
+        public void CompletePerfectly()
+        {
+            foreach (var item in Recipe.Needed) _sliced[item.Ingredient] = item.Count;
+            _wrong.Clear();
+            WrongCount = 0;
+            OverflowCount = 0;
+            ComboCount = 0;
+            ComboBonus = 0;
+        }
+
         /// <summary>Самый частый лишний ингредиент, для вердикта шефа.</summary>
         public IngredientDef WorstWrong()
         {

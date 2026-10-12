@@ -41,6 +41,7 @@ namespace RecipeSlicer
             Defaults.CopyTo(Bindings, 0);
             _listening = null;
             _blockedFrame = -1;
+            _konamiStep = 0;
         }
 
         public static bool RestartPressed() => Pressed(HotkeyAction.Restart);
@@ -126,6 +127,37 @@ namespace RecipeSlicer
                 if (PlayerPrefs.GetInt(PrefsKey(action), (int)Defaults[(int)action]) != (int)Bindings[(int)action]) return true;
             return false;
         }
+
+        // ───────────────────────── Код Конами ─────────────────────────
+
+#if ENABLE_INPUT_SYSTEM
+        static readonly KeyId[] Konami =
+            { Key.UpArrow, Key.UpArrow, Key.DownArrow, Key.DownArrow, Key.LeftArrow, Key.RightArrow, Key.LeftArrow, Key.RightArrow, Key.B, Key.A };
+#else
+        static readonly KeyId[] Konami =
+            { KeyCode.UpArrow, KeyCode.UpArrow, KeyCode.DownArrow, KeyCode.DownArrow, KeyCode.LeftArrow, KeyCode.RightArrow,
+              KeyCode.LeftArrow, KeyCode.RightArrow, KeyCode.B, KeyCode.A };
+#endif
+        static int _konamiStep;
+
+        /// <summary>
+        /// ↑ ↑ ↓ ↓ ← → ← → B A. Вызывать каждый кадр; true — в этом кадре код введён целиком.
+        /// Неверная клавиша сбрасывает ввод (но если это начало кода — засчитывается как первый шаг).
+        /// </summary>
+        public static bool KonamiEntered()
+        {
+            if (_listening != null || !AnyKeyDown(out var key)) return false;
+            if (key.Equals(Konami[_konamiStep])) _konamiStep++;
+            // ↑ ↑ ↑ — последние два «вверх» всё ещё валидное начало кода.
+            else if (key.Equals(Konami[0])) _konamiStep = _konamiStep == 2 ? 2 : 1;
+            else _konamiStep = 0;
+
+            if (_konamiStep < Konami.Length) return false;
+            _konamiStep = 0;
+            return true;
+        }
+
+        public static void ResetKonami() => _konamiStep = 0;
 
         /// <summary>Клавиши «+» и «−» (основные и на цифровом блоке): +1, −1 или 0, если не нажаты.</summary>
         public static int PlusMinusPressed()
