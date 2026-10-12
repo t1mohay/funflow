@@ -444,7 +444,13 @@ namespace RecipeSlicer
             var pause = Place(NewRect("PauseButton", hud), new Vector2(0.5f, 1f), new Vector2(pauseX, centerY), new Vector2(pauseSize, pauseSize));
             MakeButton(pause, SecondaryButtonColor, _game.Pause);
             _pauseButton = pause.gameObject;
-            AddText(Fill(NewRect("Label", pause)), "II", 52, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            // Значок паузы — две скруглённые полоски (не текст: в рукописном шрифте «II» похоже на «11»).
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var bar = Place(NewRect("Bar", pause), new Vector2(0.5f, 0.5f), new Vector2(side * pauseSize * 0.13f, 0f),
+                    new Vector2(pauseSize * 0.16f, pauseSize * 0.5f));
+                AddImage(bar, Color.white, Art.RoundedRect).pixelsPerUnitMultiplier = 4f;
+            }
         }
 
         /// <param name="titleRight">Место справа от заголовка (под картинку блюда).</param>
@@ -499,11 +505,11 @@ namespace RecipeSlicer
             SetIcon(AddImage(icon, Color.white, null), def);
 
             // Высота поля — одна строка: при нехватке места название уменьшается, а не переносится.
-            var name = AddText(Stretch(NewRect("Name", rt), new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), new Vector2(82f, -20f), new Vector2(wrong ? -10f : -100f, 20f)),
-                def.Name, 28, TextColor, TextAnchor.MiddleLeft, FontStyle.Normal);
+            var name = AddText(Stretch(NewRect("Name", rt), new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), new Vector2(82f, -26f), new Vector2(wrong ? -10f : -100f, 26f)),
+                def.Name, 36, TextColor, TextAnchor.MiddleLeft, FontStyle.Normal);
             name.resizeTextForBestFit = true;
-            name.resizeTextMinSize = 14;
-            name.resizeTextMaxSize = 28;
+            name.resizeTextMinSize = 20;
+            name.resizeTextMaxSize = 36;
             name.verticalOverflow = VerticalWrapMode.Truncate;
 
             // У лишних только иконка и название — без счётчика.
@@ -512,7 +518,7 @@ namespace RecipeSlicer
             {
                 // Шире и без переноса: «10/12» не должно перескакивать на вторую строку.
                 count = AddText(Stretch(NewRect("Count", rt), new Vector2(1f, 0f), Vector2.one, new Vector2(-96f, 0f), new Vector2(-8f, 0f)),
-                    $"0/{need}", 32, TextColor, TextAnchor.MiddleRight, FontStyle.Bold);
+                    $"0/{need}", 36, TextColor, TextAnchor.MiddleRight, FontStyle.Bold);
                 count.horizontalOverflow = HorizontalWrapMode.Overflow;
             }
 
@@ -665,6 +671,7 @@ namespace RecipeSlicer
 
             var title = AddText(Fill(NewRect("Title", logo)), "Поварской <color=#E0502E>срез</color>", 136,
                 new Color32(0x7C, 0x9C, 0x36, 0xFF), TextAnchor.MiddleCenter, FontStyle.Bold);
+            title.font = Art.DefaultFont; // логотип — стандартным шрифтом, остальной интерфейс — Fonts/Main
             title.supportRichText = true;
             title.horizontalOverflow = HorizontalWrapMode.Overflow; // название всегда в одну строку
             title.GetComponent<Shadow>().enabled = false;

@@ -11,6 +11,7 @@ namespace RecipeSlicer
         static Sprite _gradient;
         static Sprite _gloss;
         static Font _font;
+        static Font _defaultFont;
         static Material _lineMaterial;
         static readonly Dictionary<string, Sprite> Sprites = new Dictionary<string, Sprite>();
 
@@ -23,6 +24,7 @@ namespace RecipeSlicer
             _gradient = null;
             _gloss = null;
             _font = null;
+            _defaultFont = null;
             _lineMaterial = null;
             Sprites.Clear();
         }
@@ -56,6 +58,18 @@ namespace RecipeSlicer
                 if (_font == null) _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 if (_font == null) _font = Font.CreateDynamicFontFromOSFont(new[] { "Arial", "Helvetica", "Segoe UI" }, 32);
                 return _font;
+            }
+        }
+
+        /// <summary>Встроенный шрифт Unity — для логотипа.</summary>
+        public static Font DefaultFont
+        {
+            get
+            {
+                if (_defaultFont != null) return _defaultFont;
+                _defaultFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                if (_defaultFont == null) _defaultFont = Font.CreateDynamicFontFromOSFont(new[] { "Arial", "Helvetica", "Segoe UI" }, 32);
+                return _defaultFont;
             }
         }
 
