@@ -1,6 +1,7 @@
 """Лист заказа и прищепка для доски «Выбери заказ» — в стиле картинок блюд и ингредиентов:
 мягкие градиенты, тёплый контур на тон темнее заливки, скруглённые формы, блики.
-Запуск: python gen_order_paper.py  ->  Assets/Resources/UI/order_paper.png, order_clip.png"""
+Запуск: python gen_order_paper.py  ->  Assets/Resources/UI/order_paper.png
+(clip() — прежний зажим, больше не сохраняется: новый рисует kitchen_wall/gen_order_rack.py)"""
 import os
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
@@ -87,5 +88,6 @@ def clip(W=200, H=136):
 
 if __name__ == "__main__":
     os.makedirs(ROOT, exist_ok=True)
-    paper().save(os.path.join(ROOT, "order_paper.png")); clip().save(os.path.join(ROOT, "order_clip.png"))
-    print("saved order_paper.png, order_clip.png ->", ROOT)
+    # Зажим теперь в стиле стеллажа на стене — его рисует kitchen_wall/gen_order_rack.py.
+    paper().save(os.path.join(ROOT, "order_paper.png"))
+    print("saved order_paper.png ->", ROOT)

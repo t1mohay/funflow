@@ -576,7 +576,8 @@ namespace RecipeSlicer
             bg.sprite = background;
             _menuBackgroundImage = bg;
             _kitchenSprite = background;
-            // Для выбора заказа — та же кухня, но только стена из плитки (Tools/ArtGen/gen_dish_wall.py).
+            // Для выбора заказа — своя стена кухни со стеллажом, рамками и табличкой «Выбор блюда»
+            // (Tools/ArtGen/kitchen_wall). Пропорции у неё свои — LayoutMenuBackground берёт их из текущего спрайта.
             _wallSprite = Art.LoadSprite("Kitchen/wall");
             if (background == null) bg.color = CardColor;
             else _menuBackgroundAspect = background.rect.width / background.rect.height;
@@ -630,7 +631,7 @@ namespace RecipeSlicer
             _dishBoard.sizeDelta = Vector2.zero;
 
             OrderRail(_dishBoard);
-            OrderSign(_dishBoard, "Выбери заказ", new Vector2(0f, 68f), new Vector2(600f, 90f));
+            // Заголовок теперь нарисован на самой стене — табличка «Выбор блюда» под стеллажом.
 
             var all = Recipes.All;
             for (int i = 0; i < all.Length; i++)
@@ -641,15 +642,18 @@ namespace RecipeSlicer
 
         // Размеры доски заказов — в единицах фона шириной OrderBoardWidth (фон 16:9 с запасом 4%).
         const float OrderBoardWidth = 1920f * 1.04f;
-        /// <summary>Высота оси перекладины на картинке фона, доля от её высоты.</summary>
-        const float OrderRailHeight = 0.151f;
-        /// <summary>Во сколько раз доска крупнее своих размеров ниже.</summary>
-        const float OrderBoardScale = 1.155f;
+        /// <summary>Высота оси перекладины на картинке фона, доля от её высоты: под бокалами и табличкой стеллажа.</summary>
+        const float OrderRailHeight = 0.405f;
+        /// <summary>Во сколько раз доска крупнее своих размеров ниже: листы помещаются между рамками на стене.</summary>
+        const float OrderBoardScale = 0.98f;
         const float OrderSpacing = 400f;
         static readonly Vector2 OrderCardSize = new Vector2(300f, 340f);
         const float OrderCardTop = -28f;
 
-        // Перекладина и кронштейны — как нарисованные на фоне, с тем же затемнением, что у фона.
+        // Перекладина и крепления — тёмный металл, как у стеллажа на фоне (спрайты UI/order_*.png,
+        // Tools/ArtGen/kitchen_wall/gen_order_rack.py), чуть притушены, как сам фон.
+        static readonly Color RailTint = new Color(0.78f, 0.78f, 0.8f);
+        // Запасной вариант без спрайтов — деревянная перекладина.
         static readonly Color RodColor = new Color32(0x6C, 0x3D, 0x1B, 0xFF);
         static readonly Color RodDark = new Color32(0x4D, 0x26, 0x0E, 0xFF);
         static readonly Color RodLight = new Color32(0x86, 0x55, 0x2C, 0xFF);
@@ -669,6 +673,7 @@ namespace RecipeSlicer
         /// </summary>
         static void OrderRail(RectTransform board)
         {
+            if (OrderRailSprites(board)) return;
             const float halfLength = 620f, thickness = 22f;
             var center = new Vector2(0.5f, 0.5f);
             // Крайние пластины — за крайними листами, средние — посередине промежутков между листами.
@@ -725,6 +730,46 @@ namespace RecipeSlicer
                 Rounded(Stretch(NewRect("Shine", face.rectTransform), new Vector2(0f, 0.6f), Vector2.one, new Vector2(3f, 0f), new Vector2(-3f, -2f)),
                     BracketLight, 2f);
             }
+        }
+
+        /// <summary>
+        /// Металлическая перекладина в стиле стеллажа на фоне: пластины на шурупах за ней, хомуты поверх,
+        /// шарики на концах, мягкая тень на плитке. Возвращает false, если спрайтов нет.
+        /// </summary>
+        static bool OrderRailSprites(RectTransform board)
+        {
+            var rod = Art.LoadSprite("UI/order_rod");
+            var end = Art.LoadSprite("UI/order_rod_end");
+            var mount = Art.LoadSprite("UI/order_mount");
+            var saddle = Art.LoadSprite("UI/order_saddle");
+            if (rod == null || end == null || mount == null || saddle == null) return false;
+
+            const float halfLength = 520f, thickness = 15f;
+            var center = new Vector2(0.5f, 0.5f);
+            var mounts = new[] { -500f, -OrderSpacing * 0.5f, OrderSpacing * 0.5f, 500f };
+            var mountSize = new Vector2(26f, 54f);
+
+            Image PlaceSprite(string name, Sprite sprite, Vector2 position, Vector2 size)
+            {
+                var image = AddImage(Place(NewRect(name, board), center, position, size), RailTint, null);
+                image.sprite = sprite;
+                image.type = Image.Type.Simple;
+                image.raycastTarget = false;
+                return image;
+            }
+
+            // Тени на стене (свет слева сверху, как на фоне).
+            Rounded(Place(NewRect("RodShadow", board), center, new Vector2(5f, -8f), new Vector2(halfLength * 2f + 10f, 16f)),
+                new Color(0f, 0f, 0f, 0.2f), 8f);
+            foreach (float x in mounts)
+                Rounded(Place(NewRect("MountShadow", board), center, new Vector2(x + 4f, -5f), mountSize + new Vector2(4f, 4f)),
+                    new Color(0f, 0f, 0f, 0.25f), 8f);
+
+            foreach (float x in mounts) PlaceSprite("Mount", mount, new Vector2(x, 0f), mountSize);
+            PlaceSprite("Rod", rod, Vector2.zero, new Vector2(halfLength * 2f - 16f, thickness));
+            for (int side = -1; side <= 1; side += 2) PlaceSprite("RodEnd", end, new Vector2(side * halfLength, 0f), new Vector2(24f, 24f));
+            foreach (float x in mounts) PlaceSprite("Saddle", saddle, new Vector2(x, 0f), new Vector2(20f, 24f));
+            return true;
         }
 
         /// <summary>Деревянная табличка с двумя шурупами по краям.</summary>
@@ -819,11 +864,22 @@ namespace RecipeSlicer
                 .GetComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 0.35f);
 
             // Кольцо на перекладине не качается — рисуется поверх ножки прищепки.
-            var ring = Place(NewRect("ClipRing", board), center, new Vector2(x, 0f), new Vector2(42f, 42f));
-            AddImage(ring, ClipDark, Art.Circle).type = Image.Type.Simple;
-            AddImage(Stretch(NewRect("Face", ring), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f)), ClipColor, Art.Circle)
-                .type = Image.Type.Simple;
-            AddImage(Place(NewRect("Rivet", ring), center, new Vector2(0f, 2f), new Vector2(14f, 14f)), ClipLight, Art.Circle).type = Image.Type.Simple;
+            var ringSprite = Art.LoadSprite("UI/order_ring");
+            if (ringSprite != null)
+            {
+                var ringImage = AddImage(Place(NewRect("ClipRing", board), center, new Vector2(x, 0f), new Vector2(30f, 30f)), Color.white, null);
+                ringImage.sprite = ringSprite;
+                ringImage.type = Image.Type.Simple;
+                ringImage.raycastTarget = false;
+            }
+            else
+            {
+                var ring = Place(NewRect("ClipRing", board), center, new Vector2(x, 0f), new Vector2(42f, 42f));
+                AddImage(ring, ClipDark, Art.Circle).type = Image.Type.Simple;
+                AddImage(Stretch(NewRect("Face", ring), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f)), ClipColor, Art.Circle)
+                    .type = Image.Type.Simple;
+                AddImage(Place(NewRect("Rivet", ring), center, new Vector2(0f, 2f), new Vector2(14f, 14f)), ClipLight, Art.Circle).type = Image.Type.Simple;
+            }
 
             // Покачивание, «подлёт» при открытии экрана и отклик на наведение.
             hanger.gameObject.AddComponent<OrderCardAnim>().Init(dishRect, index);
@@ -971,8 +1027,11 @@ namespace RecipeSlicer
         void LayoutMenuBackground()
         {
             var size = _root.rect.size;
-            float w = Mathf.Max(size.x, size.y * _menuBackgroundAspect) * 1.04f;
-            _menuBackground.sizeDelta = new Vector2(w, w / _menuBackgroundAspect);
+            // Пропорции — у текущей картинки: у стены выбора заказа они свои (шире, 16:9).
+            var sprite = _menuBackgroundImage != null ? _menuBackgroundImage.sprite : null;
+            float aspect = sprite != null ? sprite.rect.width / sprite.rect.height : _menuBackgroundAspect;
+            float w = Mathf.Max(size.x, size.y * aspect) * 1.04f;
+            _menuBackground.sizeDelta = new Vector2(w, w / aspect);
             _menuBackground.anchoredPosition = new Vector2(0f, size.y * 0.01f);
             // Доска заказов: ось перекладины — на нарисованной перекладине, масштаб — как у фона.
             _dishBoard.anchoredPosition = new Vector2(0f, size.y * 0.01f - _menuBackground.sizeDelta.y * OrderRailHeight);
