@@ -5,8 +5,9 @@ using UnityEngine.UI;
 namespace RecipeSlicer
 {
     /// <summary>
-    /// Анимированная обводка кнопки при наведении: тонкая пунктирная рамка вокруг кнопки,
-    /// штрихи бегут по контуру по часовой стрелке. Цвет — как у заливки кнопки.
+    /// Анимированная обводка кнопки при наведении: тонкая рамка, по которой течёт «жидкая краска»
+    /// как в фоне главного меню (MenuSwirl) — тёмные и светлые разводы с прожилками и бликами
+    /// в оттенках заливки кнопки, поток идёт по часовой стрелке.
     /// Рисуется своим мешем (без текстур), время — unscaled, поэтому работает и в паузе.
     /// </summary>
     [RequireComponent(typeof(CanvasRenderer))]
@@ -16,16 +17,14 @@ namespace RecipeSlicer
         public float Thickness = 4f;
         /// <summary>Радиус скругления углов рамки (для круглых кнопок берётся половина высоты).</summary>
         public float Radius = 30f;
-        /// <summary>Длина штриха + промежутка (подгоняется, чтобы по периметру уложилось целое число).</summary>
-        public float Period = 34f;
-        /// <summary>Доля штриха в периоде.</summary>
-        public float Duty = 0.6f;
-        /// <summary>Скорость бега штрихов, единиц холста в секунду.</summary>
-        public float Speed = 60f;
+        /// <summary>Примерная длина одного «разлива» краски по контуру, единиц холста.</summary>
+        public float Wave = 220f;
+        /// <summary>Скорость течения, радиан в секунду (≈ 60–80 единиц контура в секунду).</summary>
+        public float Speed = 2.2f;
         /// <summary>Время появления и исчезновения, с.</summary>
         public float Fade = 0.15f;
 
-        const float Step = 4f;   // шаг разбиения контура — штрихи с мягкими краями
+        const float Step = 2f;   // шаг разбиения контура — плавные переливы цвета
 
         float _phase, _visible;
         bool _hover;
@@ -72,7 +71,7 @@ namespace RecipeSlicer
             if (!_hover && _visible <= 0f) return;
             float dt = UiTime.Delta;
             _visible = Mathf.MoveTowards(_visible, _hover ? 1f : 0f, dt / Mathf.Max(Fade, 0.01f));
-            _phase += Speed * dt;
+            _phase += dt;
             SetVerticesDirty();
         }
 
@@ -108,24 +107,40 @@ namespace RecipeSlicer
             for (int i = 1; i <= n; i++) dist[i] = dist[i - 1] + Vector2.Distance(points[i - 1], points[i % n]);
             float perimeter = dist[n];
 
-            // целое число штрихов по периметру — шов незаметен
-            int count = Mathf.Max(4, Mathf.RoundToInt(perimeter / Period));
-            float period = perimeter / count;
-            float dash = period * Duty;
-            const float soft = 3f;   // мягкие края штриха
+            // целые частоты по периметру — шов незаметен; поток идёт по ходу обхода (по часовой)
+            int bands = Mathf.Max(2, Mathf.RoundToInt(perimeter / Wave));
+            int warp1 = Mathf.Max(1, Mathf.RoundToInt(bands * 0.6f));
+            int warp2 = bands + 2;
+            float t = _phase;
+
+            // палитра из цвета кнопки, как у MenuSwirl: глубокий тон, основной, прожилки, блики
+            var baseColor = color;
+            Color deep = Color.Lerp(baseColor, Color.black, 0.32f);
+            Color warm = baseColor;
+            Color vein = Color.Lerp(baseColor, Color.white, 0.45f);
+            Color gloss = Color.Lerp(baseColor, Color.white, 0.8f);
+            deep.a = warm.a = vein.a = gloss.a = baseColor.a;
 
             float halfT = Thickness * 0.5f;
-            var baseColor = color;
             for (int i = 0; i < n; i++)
             {
-                // штрихи бегут по часовой стрелке: узор сдвигается вперёд по ходу обхода
-                float u = Mathf.Repeat(dist[i] - _phase, period);
-                float a = u < dash ? Mathf.Clamp01(Mathf.Min(u, dash - u) / soft) : 0f;
-                var c = baseColor;
-                c.a *= a * _visible;
-                Color32 c32 = c;
-                vh.AddVert(points[i] - normals[i] * halfT, c32, Vector2.zero);
-                vh.AddVert(points[i] + normals[i] * halfT, c32, Vector2.zero);
+                float a = dist[i] / perimeter * Mathf.PI * 2f;
+                // искажение «текучей краски»: два медленных синуса сдвигают фазу основной волны
+                float w = 0.9f * Mathf.Sin(warp1 * a + 0.8f * t) + 0.5f * Mathf.Sin(warp2 * a - 1.3f * t + 1.7f);
+                float f1 = 0.5f + 0.5f * Mathf.Sin(bands * a - Speed * t + 1.6f * w);              // основа ↔ светлый тон
+                float f2 = 0.5f + 0.5f * Mathf.Sin(bands * 2f * a - Speed * 1.3f * t + 2.2f * w);  // прожилки и тени
+
+                var c = Color.Lerp(deep, warm, Smooth(0.25f, 0.75f, f1));
+                c = Color.Lerp(c, vein, 0.8f * Gauss(f2, 0.5f, 0.07f) * Smooth(0.3f, 0.7f, f1));
+                c = Color.Lerp(c, gloss, 0.7f * Gauss(f1, 0.92f, 0.04f));
+                c.a *= _visible;
+                Color32 inner = c;
+                // наружная кромка чуть темнее — у тонкой линии появляется объём
+                var outerColor = Color.Lerp(c, deep, 0.25f);
+                outerColor.a = c.a;
+                Color32 outer = outerColor;
+                vh.AddVert(points[i] - normals[i] * halfT, inner, Vector2.zero);
+                vh.AddVert(points[i] + normals[i] * halfT, outer, Vector2.zero);
             }
             for (int i = 0; i < n; i++)
             {
@@ -134,6 +149,19 @@ namespace RecipeSlicer
                 vh.AddTriangle(a0, a1, b1);
                 vh.AddTriangle(a0, b1, b0);
             }
+        }
+
+        /// <summary>smoothstep как в шейдерах (Mathf.SmoothStep — это другая функция).</summary>
+        static float Smooth(float edge0, float edge1, float x)
+        {
+            float k = Mathf.Clamp01((x - edge0) / (edge1 - edge0));
+            return k * k * (3f - 2f * k);
+        }
+
+        static float Gauss(float x, float mean, float width)
+        {
+            float d = (x - mean) / width;
+            return Mathf.Exp(-d * d);
         }
 
         static void Line(System.Collections.Generic.List<Vector2> pts, System.Collections.Generic.List<Vector2> nrm,
