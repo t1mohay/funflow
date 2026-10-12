@@ -7,7 +7,6 @@
 Собери салат, пиццу или том ям за минуту и не урони в кастрюлю носок.
 
 [![Jam](https://img.shields.io/badge/FunFlow%20Jam-%D0%A2%D0%9F%D0%A3-e63946?style=for-the-badge)](#)
-[![Variant](https://img.shields.io/badge/%D0%B2%D0%B0%D1%80%D0%B8%D0%B0%D0%BD%D1%82%203-%D0%A0%D0%B0%D0%B7%D1%80%D1%83%D0%B1%D0%B8!-5c9e45?style=for-the-badge)](#)
 [![Platform](https://img.shields.io/badge/Windows-x64-3b3430?style=for-the-badge&logo=windows)](#как-запустить)
 [![Unity](https://img.shields.io/badge/Unity-6000.6-3b3430?style=for-the-badge&logo=unity)](https://unity.com)
 
@@ -25,9 +24,9 @@
 >
 > — с листа рецепта
 
-Это Fruit Ninja наоборот. Ингредиенты летят со всех сторон, но резать можно не всё подряд, а только то, что есть в рецепте. Лишнее портит блюдо, перебор тоже. На всё про всё **60 секунд**.
+Ингредиенты летят со всех сторон, но резать можно не всё подряд, а только то, что есть в рецепте. Лишнее портит блюдо, перебор тоже. На всё про всё **60 секунд**.
 
-Игра сделана для FunFlow Game Jam × ТПУ, вариант 3 «Разруби!» (по мотивам Fruit Ninja).
+Игра сделана для FunFlow Game Jam × ТПУ.
 
 <div align="center">
 <img src="Docs/screens/round.jpg" width="820" alt="Раунд: нарезка ингредиентов, слева — что нужно, справа — что нельзя">
