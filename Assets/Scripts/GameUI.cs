@@ -621,7 +621,7 @@ namespace RecipeSlicer
 
             var all = Recipes.All;
             for (int i = 0; i < all.Length; i++)
-                OrderCard(_dishBoard, all[i], (i - (all.Length - 1) * 0.5f) * OrderSpacing);
+                OrderCard(_dishBoard, all[i], (i - (all.Length - 1) * 0.5f) * OrderSpacing, i);
 
             SmallButton(dishes, new Vector2(150f, 90f), new Vector2(240f, 90f), "← Назад", () => ShowDishSelect(false), Vector2.zero);
         }
@@ -733,55 +733,87 @@ namespace RecipeSlicer
         }
 
         /// <summary>
-        /// Заказ: лист с картинкой блюда в деревянной рамке на прищепке и кнопка «Выбрать» под ним.
-        /// И кнопка, и сам лист открывают лист рецепта (OpenRecipeSheet).
+        /// Заказ: лист с картинкой блюда на прищепке и кнопка «Выбрать» под ним.
+        /// Лист, прищепка, тень и кнопка висят на общем «подвесе», который качается вокруг кольца
+        /// на перекладине (OrderCardAnim). И кнопка, и сам лист открывают лист рецепта (OpenRecipeSheet).
         /// </summary>
-        void OrderCard(RectTransform board, RecipeDef recipe, float x)
+        void OrderCard(RectTransform board, RecipeDef recipe, float x, int index)
         {
             var center = new Vector2(0.5f, 0.5f);
             UnityAction open = () => OpenRecipeSheet(recipe);   // звук бумаги играет сам лист
 
-            var cardPosition = new Vector2(x, OrderCardTop - OrderCardSize.y * 0.5f);
-            DropShadow(board, center, cardPosition, OrderCardSize);
-            var card = Place(NewRect(recipe.Title, board), center, cardPosition, OrderCardSize);
-            var fill = Framed(card, PaperEdge, 12f);
-            Rounded(Stretch(NewRect("Paper", fill.rectTransform), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f)), PaperColor, 6f);
+            // Подвес с точкой вращения в кольце на перекладине.
+            var hanger = Place(NewRect(recipe.Title + " (подвес)", board), center, new Vector2(x, 0f), Vector2.zero);
+
+            var cardPosition = new Vector2(0f, OrderCardTop - OrderCardSize.y * 0.5f);
+            DropShadow(hanger, center, cardPosition, OrderCardSize, 20f);
+            var card = Place(NewRect(recipe.Title, hanger), center, cardPosition, OrderCardSize);
+            Image fill;
+            var paper = Art.LoadSprite("UI/order_paper");
+            if (paper != null)
+            {
+                // Лист нарисован в стиле блюд: мягкий контур, кремовый градиент, загнутый уголок.
+                fill = AddImage(card, Color.white, null);
+                fill.sprite = paper;
+                fill.type = Image.Type.Simple;
+            }
+            else
+            {
+                fill = Framed(card, PaperEdge, 12f);
+                Rounded(Stretch(NewRect("Paper", fill.rectTransform), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f)), PaperColor, 6f);
+            }
             MakeButtonOn(card, fill, open, click: false);
 
             // Картинка блюда — по центру листа, чуть ниже, чтобы её не закрывал зажим.
+            RectTransform dishRect = null;
             var dish = Art.DishSprite(recipe);
             if (dish != null)
             {
-                var image = AddImage(Place(NewRect("Dish", card), center, new Vector2(0f, -10f), new Vector2(250f, 250f)), Color.white, dish);
+                dishRect = Place(NewRect("Dish", card), center, new Vector2(0f, -10f), new Vector2(250f, 250f));
+                var image = AddImage(dishRect, Color.white, dish);
                 image.type = Image.Type.Simple;
                 image.preserveAspect = true;
             }
 
-            // Прищепка: кольцо на перекладине, ножка и зажим, который держит верх листа.
-            var stem = Place(NewRect("ClipStem", board), center, new Vector2(x, -22f), new Vector2(20f, 48f));
-            Rounded(stem, ClipDark, 4f);
-            Rounded(Stretch(NewRect("Face", stem), Vector2.zero, Vector2.one, new Vector2(3f, 0f), new Vector2(-3f, 0f)), ClipColor, 3f);
+            // Прищепка: ножка уходит в кольцо на перекладине, зажим держит верх листа.
+            var clip = Art.LoadSprite("UI/order_clip");
+            if (clip != null)
+            {
+                var clipImage = AddImage(Place(NewRect("Clip", hanger), center, new Vector2(0f, -26f), new Vector2(100f, 68f)), Color.white, null);
+                clipImage.sprite = clip;
+                clipImage.type = Image.Type.Simple;
+            }
+            else
+            {
+                var stem = Place(NewRect("ClipStem", hanger), center, new Vector2(0f, -22f), new Vector2(20f, 48f));
+                Rounded(stem, ClipDark, 4f);
+                Rounded(Stretch(NewRect("Face", stem), Vector2.zero, Vector2.one, new Vector2(3f, 0f), new Vector2(-3f, 0f)), ClipColor, 3f);
+                var clamp = Place(NewRect("Clamp", hanger), center, new Vector2(0f, OrderCardTop - 6f), new Vector2(96f, 46f));
+                Rounded(clamp, ClipDark, 10f);
+                var clampFace = Rounded(Stretch(NewRect("Face", clamp), Vector2.zero, Vector2.one, new Vector2(3f, 5f), new Vector2(-3f, -3f)), ClipColor, 8f);
+                Rounded(Stretch(NewRect("Shine", clampFace.rectTransform), new Vector2(0f, 0.55f), Vector2.one, new Vector2(8f, 0f), new Vector2(-8f, -3f)),
+                    new Color(1f, 1f, 1f, 0.3f), 4f);
+            }
+
+            // Кнопка чуть заходит на низ листа, как на макете.
+            var buttonPosition = new Vector2(0f, OrderCardTop - OrderCardSize.y - 30f);
+            var buttonSize = new Vector2(260f, 80f);
+            DropShadow(hanger, center, buttonPosition, buttonSize);
+            var button = Place(NewRect("Choose", hanger), center, buttonPosition, buttonSize);
+            var face = Beveled(button, MenuGreen, 6f);
+            MakeButtonOn(button, face, open, click: false);
+            MenuText(Fill(NewRect("Label", face.rectTransform)), "Выбрать ▶", 36, MenuLightText, TextAnchor.MiddleCenter, FontStyle.Bold)
+                .GetComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 0.35f);
+
+            // Кольцо на перекладине не качается — рисуется поверх ножки прищепки.
             var ring = Place(NewRect("ClipRing", board), center, new Vector2(x, 0f), new Vector2(42f, 42f));
             AddImage(ring, ClipDark, Art.Circle).type = Image.Type.Simple;
             AddImage(Stretch(NewRect("Face", ring), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f)), ClipColor, Art.Circle)
                 .type = Image.Type.Simple;
             AddImage(Place(NewRect("Rivet", ring), center, new Vector2(0f, 2f), new Vector2(14f, 14f)), ClipLight, Art.Circle).type = Image.Type.Simple;
 
-            var clamp = Place(NewRect("Clamp", board), center, new Vector2(x, OrderCardTop - 6f), new Vector2(96f, 46f));
-            Rounded(clamp, ClipDark, 10f);
-            var clampFace = Rounded(Stretch(NewRect("Face", clamp), Vector2.zero, Vector2.one, new Vector2(3f, 5f), new Vector2(-3f, -3f)), ClipColor, 8f);
-            Rounded(Stretch(NewRect("Shine", clampFace.rectTransform), new Vector2(0f, 0.55f), Vector2.one, new Vector2(8f, 0f), new Vector2(-8f, -3f)),
-                new Color(1f, 1f, 1f, 0.3f), 4f);
-
-            // Кнопка чуть заходит на низ рамки, как на макете.
-            var buttonPosition = new Vector2(x, OrderCardTop - OrderCardSize.y - 30f);
-            var buttonSize = new Vector2(260f, 80f);
-            DropShadow(board, center, buttonPosition, buttonSize);
-            var button = Place(NewRect("Choose", board), center, buttonPosition, buttonSize);
-            var face = Beveled(button, MenuGreen, 6f);
-            MakeButtonOn(button, face, open, click: false);
-            MenuText(Fill(NewRect("Label", face.rectTransform)), "Выбрать ▶", 36, MenuLightText, TextAnchor.MiddleCenter, FontStyle.Bold)
-                .GetComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 0.35f);
+            // Покачивание, «подлёт» при открытии экрана и отклик на наведение.
+            hanger.gameObject.AddComponent<OrderCardAnim>().Init(dishRect, index);
         }
 
         /// <summary>Крупный заголовок, как «Пауза»: тёмно-зелёный с кремовой обводкой.</summary>

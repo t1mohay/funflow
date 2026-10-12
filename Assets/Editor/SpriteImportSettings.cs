@@ -25,7 +25,8 @@ public sealed class SpriteImportSettings : AssetPostprocessor
         {
             // Мипмапы — чтобы крутящиеся ингредиенты не рябили при уменьшении.
             importer.mipmapEnabled = true;
-            importer.maxTextureSize = 512;
+            // Интерфейс (лист заказа 600×680 и т. п.) — до 1024, чтобы не терять чёткость.
+            importer.maxTextureSize = ui ? 1024 : 512;
         }
     }
 }

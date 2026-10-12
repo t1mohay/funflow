@@ -10,6 +10,7 @@
 | Ветер для звука взмаха (`Assets/Resources/Audio/Swipe/swipe_loop.wav`) | запись «Whistling Wind; Steady, Light…» (`whistlingwindstead54.mp3`), обработка — `Tools/AudioGen/gen_04_swipe_wind.py` | **уточнить источник и лицензию** |
 | Текучий фон меню (`Assets/Resources/Shaders/MenuSwirl.shader`) | свой шейдер в духе меню Balatro (код не заимствован), превью — `Tools/ArtGen/menu_swirl_preview.py` | свой |
 | Шрифт интерфейса (`Assets/Resources/Fonts/Main.ttf`) | [Comfortaa](https://fonts.google.com/specimen/Comfortaa), начертание Bold (700), из переменного шрифта | SIL Open Font License 1.1 (текст: `Assets/Resources/Fonts/COMFORTAA_OFL.txt`) |
+| Листы заказов и прищепки (`Assets/Resources/UI/order_paper.png`, `order_clip.png`) | нарисованы скриптом `Tools/ArtGen/gen_order_paper.py` в стиле картинок блюд | свой |
 | Звуки и музыка (`Assets/Resources/Audio`) | синтезированы скриптами `Tools/AudioGen` (без сэмплов); если файла нет, `Sfx.cs` генерирует заглушку | свои |
 
 Соответствие эмодзи и ингредиентов:
