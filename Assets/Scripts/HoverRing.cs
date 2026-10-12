@@ -13,7 +13,7 @@ namespace RecipeSlicer
     public sealed class HoverRing : MaskableGraphic
     {
         /// <summary>Толщина линии, в единицах холста 1920×1080.</summary>
-        public float Thickness = 3f;
+        public float Thickness = 4f;
         /// <summary>Радиус скругления углов рамки (для круглых кнопок берётся половина высоты).</summary>
         public float Radius = 30f;
         /// <summary>Длина штриха + промежутка (подгоняется, чтобы по периметру уложилось целое число).</summary>
