@@ -498,10 +498,11 @@ namespace RecipeSlicer
             var icon = Place(NewRect("Icon", rt), new Vector2(0f, 0.5f), new Vector2(42f, 0f), new Vector2(60f, 60f));
             SetIcon(AddImage(icon, Color.white, null), def);
 
-            var name = AddText(Stretch(NewRect("Name", rt), Vector2.zero, Vector2.one, new Vector2(82f, 0f), new Vector2(wrong ? -10f : -108f, 0f)),
+            // Высота поля — одна строка: при нехватке места название уменьшается, а не переносится.
+            var name = AddText(Stretch(NewRect("Name", rt), new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), new Vector2(82f, -20f), new Vector2(wrong ? -10f : -100f, 20f)),
                 def.Name, 28, TextColor, TextAnchor.MiddleLeft, FontStyle.Normal);
             name.resizeTextForBestFit = true;
-            name.resizeTextMinSize = 16;
+            name.resizeTextMinSize = 14;
             name.resizeTextMaxSize = 28;
             name.verticalOverflow = VerticalWrapMode.Truncate;
 
@@ -510,7 +511,7 @@ namespace RecipeSlicer
             if (!wrong)
             {
                 // Шире и без переноса: «10/12» не должно перескакивать на вторую строку.
-                count = AddText(Stretch(NewRect("Count", rt), new Vector2(1f, 0f), Vector2.one, new Vector2(-104f, 0f), new Vector2(-8f, 0f)),
+                count = AddText(Stretch(NewRect("Count", rt), new Vector2(1f, 0f), Vector2.one, new Vector2(-96f, 0f), new Vector2(-8f, 0f)),
                     $"0/{need}", 32, TextColor, TextAnchor.MiddleRight, FontStyle.Bold);
                 count.horizontalOverflow = HorizontalWrapMode.Overflow;
             }
