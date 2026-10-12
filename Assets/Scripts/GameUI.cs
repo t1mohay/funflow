@@ -14,8 +14,15 @@ namespace RecipeSlicer
     /// <summary>Весь интерфейс строится кодом: меню, панели рецепта, таймер, всплывающий текст, результат.</summary>
     public sealed class GameUI : MonoBehaviour
     {
-        /// <summary>Доля ширины экрана под каждую боковую панель; спавнер не залезает под них.</summary>
-        public const float SidePanelFraction = 0.185f;
+        /// <summary>
+        /// Доля ширины экрана под каждую боковую панель; спавнер не залезает под них.
+        /// Обычно 18,5 %, но на узком экране панели расширяются, чтобы заголовки «НУЖНО» / «НЕ НУЖНО»
+        /// всегда помещались в одну строку (LayoutSidePanels).
+        /// </summary>
+        public static float SidePanelFraction { get; private set; } = BaseSidePanelFraction;
+        const float BaseSidePanelFraction = 0.185f;
+        /// <summary>Шире не делаем: игровому полю нужно место.</summary>
+        const float MaxSidePanelFraction = 0.3f;
 
         public static readonly Color TextColor = new Color(1f, 0.96f, 0.9f);
         public static readonly Color GoodColor = new Color(0.56f, 0.93f, 0.45f);
@@ -138,7 +145,7 @@ namespace RecipeSlicer
             _flash = AddImage(Fill(NewRect("Flash", _root)), Color.clear, null);
             _floatLayer = Fill(NewRect("Floaters", _root));
             // Плашка — только между боковыми панелями, чтобы не залезала на списки.
-            _banner = AddText(Stretch(NewRect("Banner", _root), new Vector2(SidePanelFraction, 0.66f), new Vector2(1f - SidePanelFraction, 0.66f),
+            _banner = AddText(Stretch(NewRect("Banner", _root), new Vector2(BaseSidePanelFraction, 0.66f), new Vector2(1f - BaseSidePanelFraction, 0.66f),
                     new Vector2(20f, -60f), new Vector2(-20f, 60f)),
                 "", 54, AccentColor, TextAnchor.MiddleCenter, FontStyle.Bold);
             _countdown = AddText(Place(NewRect("Countdown", _root), new Vector2(0.5f, 0.48f), Vector2.zero, new Vector2(900f, 320f)),
@@ -368,6 +375,7 @@ namespace RecipeSlicer
         {
             float dt = UiTime.Delta;
             LayoutMenuBackground();
+            LayoutSidePanels();
             if (InputUtil.Listening != null && InputUtil.PollRebind()) RefreshSettingsUI();
 
             foreach (var row in _rows)
@@ -432,8 +440,8 @@ namespace RecipeSlicer
             var hud = Fill(NewRect("HUD", _root));
             _hud = hud.gameObject;
 
-            _neededList = BuildSidePanel(hud, "Нужно", "НУЖНО", GoodColor, 0f, SidePanelFraction, DishBadgeSize * 0.8f);
-            _wrongList = BuildSidePanel(hud, "НеНужно", "НЕ НУЖНО", BadColor, 1f - SidePanelFraction, 1f, 0f);
+            _neededList = BuildSidePanel(hud, "Нужно", "НУЖНО", GoodColor, 0f, BaseSidePanelFraction, DishBadgeSize * 0.8f);
+            _wrongList = BuildSidePanel(hud, "НеНужно", "НЕ НУЖНО", BadColor, 1f - BaseSidePanelFraction, 1f, 0f);
             _neededPanel = (RectTransform)_neededList.parent;
             _wrongPanel = (RectTransform)_wrongList.parent;
 
@@ -480,8 +488,12 @@ namespace RecipeSlicer
             var panel = Stretch(NewRect(name, parent), new Vector2(xMin, 0.5f), new Vector2(xMax, 0.5f),
                 new Vector2(xMin > 0f ? 8f : 16f, -300f), new Vector2(xMin > 0f ? -16f : -8f, 300f));
             FramedClear(panel, SidePanelColor, 6f);
-            AddText(Stretch(NewRect("Title", panel), new Vector2(0f, 1f), Vector2.one, new Vector2(18f, -SidePanelTop + 6f), new Vector2(-18f - titleRight, -14f)),
+            var label = AddText(Stretch(NewRect("Title", panel), new Vector2(0f, 1f), Vector2.one, new Vector2(18f, -SidePanelTop + 6f), new Vector2(-18f - titleRight, -14f)),
                 title, 46, titleColor, TextAnchor.MiddleCenter, FontStyle.Bold);
+            // Минимальная ширина панели: заголовок в одну строку + поля + место под картинку блюда + отступы от краёв экрана.
+            // preferredWidth — точная ширина шрифтом; запасной расчёт — на случай, если шрифт ещё не построил глифы.
+            float titleWidth = Mathf.Max(label.preferredWidth, label.fontSize * 0.8f * title.Length);
+            _sidePanelMinWidth = Mathf.Max(_sidePanelMinWidth, titleWidth + 36f + titleRight + 24f + 12f);
             return Stretch(NewRect("List", panel), Vector2.zero, Vector2.one, new Vector2(16f, SidePanelBottom), new Vector2(-16f, -SidePanelTop));
         }
 
@@ -498,6 +510,27 @@ namespace RecipeSlicer
             var dish = Art.DishSprite(recipe);
             _dishBadge.sprite = dish;
             _dishBadge.enabled = dish != null;
+        }
+
+        float _sidePanelMinWidth;
+
+        /// <summary>
+        /// Ширина боковых панелей: не меньше базовой доли экрана и не меньше, чем нужно заголовкам.
+        /// Обе панели одной ширины — игровое поле остаётся по центру. Плашка с подсказками — между ними.
+        /// </summary>
+        void LayoutSidePanels()
+        {
+            if (_neededPanel == null || _wrongPanel == null || _banner == null) return;
+            float width = _root.rect.width;
+            if (width <= 1f) return;
+            float fraction = Mathf.Clamp(_sidePanelMinWidth / width, BaseSidePanelFraction, MaxSidePanelFraction);
+            SidePanelFraction = fraction;   // спавнер (GameManager.UpdateLayout) не залезает под панели
+            if (Mathf.Abs(fraction - _neededPanel.anchorMax.x) < 0.0005f) return;
+            _neededPanel.anchorMax = new Vector2(fraction, _neededPanel.anchorMax.y);
+            _wrongPanel.anchorMin = new Vector2(1f - fraction, _wrongPanel.anchorMin.y);
+            var banner = _banner.rectTransform;
+            banner.anchorMin = new Vector2(fraction, banner.anchorMin.y);
+            banner.anchorMax = new Vector2(1f - fraction, banner.anchorMax.y);
         }
 
         /// <summary>Обе боковые панели одной высоты (по самому длинному списку) и по центру экрана — выровнены друг с другом.</summary>
