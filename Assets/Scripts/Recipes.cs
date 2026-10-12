@@ -139,7 +139,7 @@ namespace RecipeSlicer
             Difficulty = new DifficultyCurve
             {
                 IntervalStart = 0.95f, IntervalEnd = 0.5f, MaxBurst = 3,
-                WrongChanceStart = 0.2f, WrongChanceEnd = 0.35f,
+                WrongChanceStart = 0.3f, WrongChanceEnd = 0.5f,
                 SpeedStart = 0.95f, SpeedEnd = 1.25f,
             },
         };
@@ -166,8 +166,8 @@ namespace RecipeSlicer
             Wrong = new[] { Pineapple, Strawberry, IceCream, Cucumber, Cookie, Banana },
             Difficulty = new DifficultyCurve
             {
-                IntervalStart = 1.05f, IntervalEnd = 0.5f, MaxBurst = 3,
-                WrongChanceStart = 0.22f, WrongChanceEnd = 0.4f,
+                IntervalStart = 0.95f, IntervalEnd = 0.5f, MaxBurst = 3,
+                WrongChanceStart = 0.3f, WrongChanceEnd = 0.5f,
                 SpeedStart = 1f, SpeedEnd = 1.35f,
             },
         };
@@ -196,7 +196,7 @@ namespace RecipeSlicer
             Difficulty = new DifficultyCurve
             {
                 IntervalStart = 1f, IntervalEnd = 0.45f, MaxBurst = 4,
-                WrongChanceStart = 0.25f, WrongChanceEnd = 0.45f,
+                WrongChanceStart = 0.38f, WrongChanceEnd = 0.6f,
                 SpeedStart = 1.05f, SpeedEnd = 1.45f,
             },
         };

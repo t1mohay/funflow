@@ -70,7 +70,7 @@ namespace RecipeSlicer
         void Update()
         {
             if (!_hover && _visible <= 0f) return;
-            float dt = Time.unscaledDeltaTime;
+            float dt = UiTime.Delta;
             _visible = Mathf.MoveTowards(_visible, _hover ? 1f : 0f, dt / Mathf.Max(Fade, 0.01f));
             _phase += Speed * dt;
             SetVerticesDirty();

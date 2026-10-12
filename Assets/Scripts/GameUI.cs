@@ -350,7 +350,7 @@ namespace RecipeSlicer
 
         void Update()
         {
-            float dt = Time.unscaledDeltaTime;
+            float dt = UiTime.Delta;
             LayoutMenuBackground();
             if (InputUtil.Listening != null && InputUtil.PollRebind()) RefreshSettingsUI();
 
@@ -1109,7 +1109,7 @@ namespace RecipeSlicer
         static IEnumerator PopIn(RectTransform rt)
         {
             const float duration = 0.18f;
-            for (float t = 0f; t < duration && rt != null; t += Time.unscaledDeltaTime)
+            for (float t = 0f; t < duration && rt != null; t += UiTime.Delta)
             {
                 float k = 1f - Mathf.Pow(1f - t / duration, 3f);
                 rt.localScale = Vector3.one * Mathf.Lerp(0.85f, 1f, k);

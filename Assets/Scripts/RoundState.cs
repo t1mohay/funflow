@@ -16,8 +16,8 @@ namespace RecipeSlicer
     {
         /// <summary>Очки за нужный ингредиент. В каждом рецепте ровно 50 штук, поэтому максимум — 100.</summary>
         public const int PointsPerIngredient = 2;
-        public const int WrongPenalty = 3;
-        public const int OverflowPenalty = 3;
+        public const int WrongPenalty = 5;
+        public const int OverflowPenalty = 4;
         /// <summary>Бонус за каждый ингредиент комбо сверх второго: ×3 → +5, ×4 → +10.</summary>
         public const int ComboBonusPerExtra = 5;
         public const int ComboMin = 3;
