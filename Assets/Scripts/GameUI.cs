@@ -22,20 +22,21 @@ namespace RecipeSlicer
         public static readonly Color BadColor = new Color(1f, 0.4f, 0.35f);
         public static readonly Color AccentColor = new Color(1f, 0.8f, 0.3f);
 
-        static readonly Color PanelColor = new Color(0f, 0f, 0f, 0.55f);
-        static readonly Color RowColor = new Color(1f, 1f, 1f, 0.07f);
-        static readonly Color RowDoneColor = new Color(0.4f, 0.85f, 0.3f, 0.3f);
-        static readonly Color RowWrongColor = new Color(1f, 0.3f, 0.25f, 0.12f);
+        // HUD — непрозрачные панели в гамме проекта: тёплый графит в деревянной рамке, строки чуть светлее.
+        static readonly Color PanelColor = new Color32(0x3B, 0x34, 0x30, 0xFF);    // тёплый графит
+        static readonly Color RowColor = new Color32(0x4C, 0x43, 0x3D, 0xFF);
+        static readonly Color RowDoneColor = new Color32(0x45, 0x61, 0x3D, 0xFF);  // глубокий шалфей
+        static readonly Color RowWrongColor = new Color32(0x5C, 0x37, 0x31, 0xFF); // приглушённая терракота
         static readonly Color CardColor = new Color(0.27f, 0.18f, 0.13f, 0.96f);
         static readonly Color ButtonColor = new Color(0.36f, 0.62f, 0.27f, 1f);
         static readonly Color SecondaryButtonColor = new Color(0.4f, 0.3f, 0.24f, 1f);
 
-        const float RowHeight = 76f;
-        const float RowGap = 8f;
+        const float RowHeight = 90f;
+        const float RowGap = 9f;
         /// <summary>Высота шапки боковой панели (заголовок) и нижний отступ — как в BuildSidePanel.</summary>
-        const float SidePanelTop = 92f;
-        const float SidePanelBottom = 12f;
-        const float DishBadgeSize = 120f;
+        const float SidePanelTop = 106f;
+        const float SidePanelBottom = 20f;
+        const float DishBadgeSize = 136f;
         const float FloaterLife = 0.9f;
         const float CountdownLife = 0.65f;
 
@@ -137,7 +138,18 @@ namespace RecipeSlicer
                     new Vector2(20f, -60f), new Vector2(-20f, 60f)),
                 "", 54, AccentColor, TextAnchor.MiddleCenter, FontStyle.Bold);
             _countdown = AddText(Place(NewRect("Countdown", _root), new Vector2(0.5f, 0.48f), Vector2.zero, new Vector2(900f, 320f)),
-                "", 200, TextColor, TextAnchor.MiddleCenter, FontStyle.Bold);
+                "", 210, TextColor, TextAnchor.MiddleCenter, FontStyle.Bold);
+            // Отсчёт читается на любом фоне: толстая обводка тёплым графитом, деревянная кайма и тень вниз.
+            _countdown.GetComponent<Shadow>().enabled = false;
+            var countdownOutline = _countdown.gameObject.AddComponent<SmoothOutline>();
+            countdownOutline.effectColor = PanelColor;
+            countdownOutline.effectDistance = new Vector2(9f, -9f);
+            var countdownRim = _countdown.gameObject.AddComponent<SmoothOutline>();
+            countdownRim.effectColor = MenuOutline;
+            countdownRim.effectDistance = new Vector2(3f, -3f);
+            var countdownShadow = _countdown.gameObject.AddComponent<Shadow>();
+            countdownShadow.effectColor = new Color(0f, 0f, 0f, 0.45f);
+            countdownShadow.effectDistance = new Vector2(0f, -12f);
             BuildMenu();
             BuildResults();
             BuildPause();
@@ -436,7 +448,7 @@ namespace RecipeSlicer
 
             // Тёмная плашка под таймером и счётом — чтобы читались на светлом фоне.
             _timerPlate = Place(NewRect("TimerPlate", hud), new Vector2(0.5f, 1f), new Vector2(plateX, centerY), new Vector2(plateWidth, plateHeight)).gameObject;
-            AddImage((RectTransform)_timerPlate.transform, PanelColor, Art.RoundedRect);
+            Framed((RectTransform)_timerPlate.transform, PanelColor, 6f);
             _timerRect = Place(NewRect("Timer", hud), new Vector2(0.5f, 1f), new Vector2(plateX, -top - 56f), new Vector2(plateWidth - 40f, 100f));
             _timer = AddText(_timerRect, "1:00", 84, TextColor, TextAnchor.MiddleCenter, FontStyle.Bold);
             _score = AddText(Place(NewRect("Score", hud), new Vector2(0.5f, 1f), new Vector2(plateX, -top - plateHeight + 38f), new Vector2(plateWidth - 20f, 50f)),
@@ -444,12 +456,13 @@ namespace RecipeSlicer
 
             // Кнопка паузы справа от плашки.
             var pause = Place(NewRect("PauseButton", hud), new Vector2(0.5f, 1f), new Vector2(pauseX, centerY), new Vector2(pauseSize, pauseSize));
-            MakeButton(pause, SecondaryButtonColor, _game.Pause);
+            var pauseFace = Beveled(pause, SecondaryButtonColor, 6f);
+            MakeButtonOn(pause, pauseFace, _game.Pause);
             _pauseButton = pause.gameObject;
             // Значок паузы — две скруглённые полоски (не текст: в рукописном шрифте «II» похоже на «11»).
             for (int side = -1; side <= 1; side += 2)
             {
-                var bar = Place(NewRect("Bar", pause), new Vector2(0.5f, 0.5f), new Vector2(side * pauseSize * 0.13f, 0f),
+                var bar = Place(NewRect("Bar", pauseFace.rectTransform), new Vector2(0.5f, 0.5f), new Vector2(side * pauseSize * 0.12f, 0f),
                     new Vector2(pauseSize * 0.16f, pauseSize * 0.5f));
                 AddImage(bar, Color.white, Art.RoundedRect).pixelsPerUnitMultiplier = 4f;
             }
@@ -461,10 +474,10 @@ namespace RecipeSlicer
             // По вертикали панель по центру экрана; высота задаётся в FitSidePanels по числу строк.
             var panel = Stretch(NewRect(name, parent), new Vector2(xMin, 0.5f), new Vector2(xMax, 0.5f),
                 new Vector2(xMin > 0f ? 8f : 16f, -300f), new Vector2(xMin > 0f ? -16f : -8f, 300f));
-            AddImage(panel, PanelColor, Art.RoundedRect);
-            AddText(Stretch(NewRect("Title", panel), new Vector2(0f, 1f), Vector2.one, new Vector2(12f, -80f), new Vector2(-12f - titleRight, -14f)),
-                title, 40, titleColor, TextAnchor.MiddleCenter, FontStyle.Bold);
-            return Stretch(NewRect("List", panel), Vector2.zero, Vector2.one, new Vector2(12f, 12f), new Vector2(-12f, -92f));
+            Framed(panel, PanelColor, 6f);
+            AddText(Stretch(NewRect("Title", panel), new Vector2(0f, 1f), Vector2.one, new Vector2(18f, -SidePanelTop + 6f), new Vector2(-18f - titleRight, -14f)),
+                title, 46, titleColor, TextAnchor.MiddleCenter, FontStyle.Bold);
+            return Stretch(NewRect("List", panel), Vector2.zero, Vector2.one, new Vector2(16f, SidePanelBottom), new Vector2(-16f, -SidePanelTop));
         }
 
         void BuildRows(RecipeDef recipe)
@@ -503,21 +516,21 @@ namespace RecipeSlicer
             rt.anchoredPosition = new Vector2(0f, -index * (RowHeight + RowGap) - RowHeight * 0.5f);
             var background = AddImage(rt, wrong ? RowWrongColor : RowColor, Art.RoundedRect);
 
-            var icon = Place(NewRect("Icon", rt), new Vector2(0f, 0.5f), new Vector2(42f, 0f), new Vector2(60f, 60f));
+            var icon = Place(NewRect("Icon", rt), new Vector2(0f, 0.5f), new Vector2(48f, 0f), new Vector2(72f, 72f));
             SetIcon(AddImage(icon, Color.white, null), def);
 
             // Высота поля — одна строка: при нехватке места название уменьшается, а не переносится.
-            var name = AddText(Stretch(NewRect("Name", rt), new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), new Vector2(82f, -26f), new Vector2(wrong ? -10f : -100f, 26f)),
-                def.Name, 36, TextColor, TextAnchor.MiddleLeft, FontStyle.Normal);
-            FitSingleLine(name, 36, 16);
+            var name = AddText(Stretch(NewRect("Name", rt), new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), new Vector2(94f, -30f), new Vector2(wrong ? -10f : -116f, 30f)),
+                def.Name, 42, TextColor, TextAnchor.MiddleLeft, FontStyle.Normal);
+            FitSingleLine(name, 42, 18);
 
             // У лишних только иконка и название — без счётчика.
             Text count = null;
             if (!wrong)
             {
                 // Шире и без переноса: «10/12» не должно перескакивать на вторую строку.
-                count = AddText(Stretch(NewRect("Count", rt), new Vector2(1f, 0f), Vector2.one, new Vector2(-96f, 0f), new Vector2(-8f, 0f)),
-                    $"0/{need}", 36, TextColor, TextAnchor.MiddleRight, FontStyle.Bold);
+                count = AddText(Stretch(NewRect("Count", rt), new Vector2(1f, 0f), Vector2.one, new Vector2(-112f, 0f), new Vector2(-10f, 0f)),
+                    $"0/{need}", 42, TextColor, TextAnchor.MiddleRight, FontStyle.Bold);
                 count.horizontalOverflow = HorizontalWrapMode.Overflow;
             }
 
