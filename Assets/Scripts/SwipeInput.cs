@@ -71,8 +71,8 @@ namespace RecipeSlicer
 
         void Update()
         {
-            float now = Time.unscaledTime;
-            float dt = Mathf.Max(Time.unscaledDeltaTime, 0.0001f);
+            float now = UiTime.Now;
+            float dt = Mathf.Max(UiTime.Delta, 0.0001f);
             _swooshCooldown -= dt;
 
             // В паузе мышь нужна для меню: след не рисуем, звук взмаха не играем.

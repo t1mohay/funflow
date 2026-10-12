@@ -56,7 +56,7 @@ namespace RecipeSlicer
 
         void Update()
         {
-            float t = Time.unscaledTime;
+            float t = UiTime.Now;
             float s = 1f + Scale * Mathf.Sin(t * 1.8f);
             transform.localScale = new Vector3(s, s, 1f);
             transform.localEulerAngles = new Vector3(0f, 0f, Tilt + Swing * Mathf.Sin(t * 1.1f));

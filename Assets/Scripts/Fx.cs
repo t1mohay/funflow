@@ -106,7 +106,7 @@ namespace RecipeSlicer
         {
             if (_shakeTime > 0f)
             {
-                _shakeTime -= Time.unscaledDeltaTime;
+                _shakeTime -= UiTime.Delta;
                 float k = Mathf.Clamp01(_shakeTime / _shakeDuration);
                 _cam.transform.position = _camBase + (Vector3)(Random.insideUnitCircle * (_shakeAmp * k));
             }

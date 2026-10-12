@@ -7,7 +7,7 @@ namespace RecipeSlicer
     {
         const float Gravity = 9f;
         const float Radius = 0.72f;
-        const float CompletedWeight = 0.2f;
+        const float CompletedWeight = 0.6f; // уже собранное летит заметно — ловушка перебора
         const int MaxSameSide = 2;
         const float ClusterChance = 0.5f;
         const float ClusterStep = 1.3f;
