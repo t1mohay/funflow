@@ -676,7 +676,6 @@ namespace RecipeSlicer
         static readonly Color ClipLight = new Color32(0x9A, 0x9A, 0xA3, 0xFF);
         static readonly Color PaperColor = new Color32(0xFC, 0xF9, 0xF2, 0xFF);
         static readonly Color PaperEdge = new Color32(0xE4, 0xDC, 0xCB, 0xFF);
-        static readonly Color SignWood = new Color32(0xE8, 0xB4, 0x68, 0xFF);
 
         /// <summary>
         /// Деревянная перекладина во всю доску, прикрученная к стене: за ней — железные пластины на шурупах,
@@ -781,24 +780,6 @@ namespace RecipeSlicer
             for (int side = -1; side <= 1; side += 2) PlaceSprite("RodEnd", end, new Vector2(side * halfLength, 0f), new Vector2(24f, 24f));
             foreach (float x in mounts) PlaceSprite("Saddle", saddle, new Vector2(x, 0f), new Vector2(20f, 24f));
             return true;
-        }
-
-        /// <summary>Деревянная табличка с двумя шурупами по краям.</summary>
-        void OrderSign(RectTransform board, string text, Vector2 position, Vector2 size)
-        {
-            DropShadow(board, new Vector2(0.5f, 0.5f), position, size, 20f);
-            var sign = Place(NewRect("Sign", board), new Vector2(0.5f, 0.5f), position, size);
-            var face = Framed(sign, SignWood, 8f, 20f);
-            for (int side = -1; side <= 1; side += 2)
-            {
-                var screw = Place(NewRect("Screw", sign), new Vector2(0.5f, 0.5f), new Vector2(side * (size.x * 0.5f - 30f), 0f), new Vector2(18f, 18f));
-                AddImage(screw, ClipDark, Art.Circle).type = Image.Type.Simple;
-                AddImage(Stretch(NewRect("Head", screw), Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f)), ClipLight, Art.Circle)
-                    .type = Image.Type.Simple;
-            }
-            var label = MenuText(Stretch(NewRect("Label", face.rectTransform), Vector2.zero, Vector2.one, new Vector2(50f, 0f), new Vector2(-50f, 0f)),
-                text, 56, MenuGreenText, TextAnchor.MiddleCenter, FontStyle.Bold);
-            FitSingleLine(label, 56, 30); // всегда в одну строку, между шурупами
         }
 
         /// <summary>
@@ -1512,7 +1493,6 @@ namespace RecipeSlicer
         static readonly Color MenuGreenText = new Color32(0x45, 0x55, 0x22, 0xFF);
         static readonly Color MenuBrownText = new Color32(0x5A, 0x3D, 0x22, 0xFF);
         static readonly Color MenuLightText = new Color32(0xFF, 0xF6, 0xE3, 0xFF);
-        static readonly Color MenuWarnText = new Color32(0xA8, 0x3A, 0x2A, 0xFF);
 
         void BuildPause()
         {
@@ -2183,23 +2163,6 @@ namespace RecipeSlicer
             shadow.effectColor = new Color(0f, 0f, 0f, 0.5f);
             shadow.effectDistance = new Vector2(2f, -2f);
             return label;
-        }
-
-        void MakeButton(RectTransform rt, Color color, UnityAction onClick, bool click = true)
-        {
-            var image = AddImage(rt, color, Art.RoundedRect);
-            image.raycastTarget = true;
-            var button = rt.gameObject.AddComponent<Button>();
-            button.targetGraphic = image;
-            var colors = button.colors;
-            colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(1f, 0.9f, 0.7f);
-            colors.pressedColor = new Color(0.75f, 0.75f, 0.75f);
-            colors.selectedColor = Color.white;
-            button.colors = colors;
-            if (click) button.onClick.AddListener(() => _uiClick?.Invoke());
-            button.onClick.AddListener(onClick);
-            HoverRing.Attach(rt, HoverRing.ColorFor(color));
         }
     }
 }
