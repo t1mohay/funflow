@@ -81,6 +81,8 @@ namespace RecipeSlicer
         /// <summary>Сколько ползунков создано — чтобы чередовать перечницу и солонку.</summary>
         int _sliderCount;
         readonly List<(HotkeyAction Action, Text Label)> _hotkeyLabels = new List<(HotkeyAction, Text)>();
+        /// <summary>Таблички «Лучший результат» под листами заказов — показываются, когда рекорд уже есть.</summary>
+        readonly List<(RecipeDef Recipe, GameObject Tag, Text Score)> _bestTags = new List<(RecipeDef, GameObject, Text)>();
         Text _resolutionLabel, _windowModeLabel;
         readonly List<Vector2Int> _resolutions = new List<Vector2Int>();
         int _resolutionIndex;
@@ -457,7 +459,8 @@ namespace RecipeSlicer
             // Кнопка паузы справа от плашки.
             var pause = Place(NewRect("PauseButton", hud), new Vector2(0.5f, 1f), new Vector2(pauseX, centerY), new Vector2(pauseSize, pauseSize));
             var pauseFace = Beveled(pause, SecondaryButtonColor, 6f);
-            MakeButtonOn(pause, pauseFace, _game.Pause);
+            // Без обводки при наведении: кнопка стоит вплотную к плашке таймера, рамка налезала бы на неё.
+            MakeButtonOn(pause, pauseFace, _game.Pause, hoverRing: false);
             _pauseButton = pause.gameObject;
             // Значок паузы — две скруглённые полоски (не текст: в рукописном шрифте «II» похоже на «11»).
             for (int side = -1; side <= 1; side += 2)
@@ -869,6 +872,8 @@ namespace RecipeSlicer
             MenuText(Fill(NewRect("Label", face.rectTransform)), "Выбрать ▶", 36, MenuLightText, TextAnchor.MiddleCenter, FontStyle.Bold)
                 .GetComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 0.35f);
 
+            BestTag(hanger, recipe, buttonPosition.y - buttonSize.y * 0.5f);
+
             // Кольцо на перекладине не качается — рисуется поверх ножки прищепки.
             var ringSprite = Art.LoadSprite("UI/order_ring");
             if (ringSprite != null)
@@ -889,6 +894,51 @@ namespace RecipeSlicer
 
             // Покачивание, «подлёт» при открытии экрана и отклик на наведение.
             hanger.gameObject.AddComponent<OrderCardAnim>().Init(dishRect, index);
+        }
+
+        /// <summary>
+        /// Табличка «Лучший результат» на двух шнурках под кнопкой «Выбрать». Висит на том же подвесе,
+        /// что и лист (качается вместе с ним), и сама чуть покачивается. Видна, только когда рекорд уже есть.
+        /// </summary>
+        void BestTag(RectTransform hanger, RecipeDef recipe, float top)
+        {
+            const float cord = 14f;
+            var tagSize = new Vector2(210f, 66f);
+            // Точка подвеса — середина низа кнопки: вокруг неё табличка и качается.
+            var holder = Place(NewRect("BestTag", hanger), new Vector2(0.5f, 0.5f), new Vector2(0f, top), new Vector2(tagSize.x, cord + tagSize.y));
+            holder.pivot = new Vector2(0.5f, 1f);
+            holder.anchoredPosition = new Vector2(0f, top);
+
+            for (int side = -1; side <= 1; side += 2)
+                Rounded(Place(NewRect("Cord", holder), new Vector2(0.5f, 1f), new Vector2(side * tagSize.x * 0.3f, -cord * 0.5f - 2f), new Vector2(3f, cord + 6f)),
+                    MenuBrownText, 1.5f);
+            var tagPosition = new Vector2(0f, -cord - tagSize.y * 0.5f);
+            DropShadow(holder, new Vector2(0.5f, 1f), tagPosition, tagSize, 12f);
+            var tag = Place(NewRect("Tag", holder), new Vector2(0.5f, 1f), tagPosition, tagSize);
+            var face = Framed(tag, MenuCream, 5f, 14f);
+            var title = MenuText(Stretch(NewRect("Title", face.rectTransform), new Vector2(0f, 0.5f), Vector2.one, new Vector2(8f, -2f), new Vector2(-8f, -3f)),
+                "Лучший результат", 20, MenuBrownText, TextAnchor.MiddleCenter, FontStyle.Bold);
+            FitSingleLine(title, 20, 14);
+            var score = MenuText(Stretch(NewRect("Score", face.rectTransform), Vector2.zero, new Vector2(1f, 0.5f), new Vector2(8f, 2f), new Vector2(-8f, 2f)),
+                "", 28, MenuGreenText, TextAnchor.MiddleCenter, FontStyle.Bold);
+
+            var sway = holder.gameObject.AddComponent<WallSway>();
+            sway.Amplitude = 1.5f;
+            sway.Period = 3.4f;
+            sway.Phase = _bestTags.Count * 0.37f;
+            _bestTags.Add((recipe, holder.gameObject, score));
+            holder.gameObject.SetActive(false);
+        }
+
+        /// <summary>Рекорды могли смениться после раунда — обновляем таблички при каждом открытии выбора заказа.</summary>
+        void RefreshBestTags()
+        {
+            foreach (var (recipe, tag, score) in _bestTags)
+            {
+                int best = _game.BestScore(recipe);
+                tag.SetActive(best >= 0);
+                if (best >= 0) score.text = $"{best}/100";
+            }
         }
 
         /// <summary>Крупный заголовок, как «Пауза»: тёмно-зелёный с кремовой обводкой.</summary>
@@ -996,6 +1046,7 @@ namespace RecipeSlicer
             CloseRecipeSheet(silent: true);
             _dishScreen.SetActive(visible);
             _mainScreen.SetActive(!visible);
+            if (visible) RefreshBestTags();
             // Выбор заказа — на кухне (одна стена из плитки и стол); главное меню — на текучем фоне.
             if (_wallLayers != null) _wallLayers.SetActive(visible);
             if (_kitchenSprite != null && _wallSprite != null)
@@ -1640,7 +1691,7 @@ namespace RecipeSlicer
 
         /// <summary>Кнопка на уже нарисованной рамке: подсвечивается заливка, клики ловит вся рамка.</summary>
         /// <param name="click">Играть общий звук клика. Выключено у кнопок листа рецепта — у них звук бумаги.</param>
-        static void MakeButtonOn(RectTransform rt, Image fill, UnityAction onClick, bool click = true)
+        static void MakeButtonOn(RectTransform rt, Image fill, UnityAction onClick, bool click = true, bool hoverRing = true)
         {
             var hit = rt.GetComponent<Image>();
             hit.raycastTarget = true;
@@ -1654,8 +1705,8 @@ namespace RecipeSlicer
             button.colors = colors;
             if (click) button.onClick.AddListener(() => _uiClick?.Invoke());
             button.onClick.AddListener(onClick);
-            // при наведении — тонкая рамка цвета кнопки, штрихи бегут по часовой стрелке
-            HoverRing.Attach(rt, HoverRing.ColorFor(fill.color));
+            // при наведении — рамка цвета кнопки с текучей «краской»
+            if (hoverRing) HoverRing.Attach(rt, HoverRing.ColorFor(fill.color));
         }
 
         /// <summary>Строка «подпись — ползунок с мельницей — значение».</summary>

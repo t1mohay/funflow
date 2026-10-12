@@ -233,7 +233,7 @@ namespace RecipeSlicer
                     a = Mathf.Max(a, Mathf.Clamp01((drop[i].z - dd) / (1.5f * px) + 0.5f));
                 }
                 // Сок в середине чуть плотнее, к краям — прозрачнее.
-                a *= Mathf.Lerp(1f, 0.82f, Mathf.Clamp01(r / 0.45f));
+                a *= Mathf.Lerp(1f, 0.93f, Mathf.Clamp01(r / 0.45f));
                 pixels[y * size + x] = new Color32(255, 255, 255, (byte)(a * 255));
             }
             tex.SetPixels32(pixels);

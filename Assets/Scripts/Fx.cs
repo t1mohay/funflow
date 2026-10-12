@@ -83,7 +83,7 @@ namespace RecipeSlicer
             s.Renderer.sprite = Art.Splat(Random.Range(0, Art.SplatVariants));
             // Сок на стене чуть темнее самого ингредиента — как фон, он тоже затемнён.
             s.Color = Color.Lerp(color, Color.black, 0.18f);
-            s.Color.a = 0.85f;
+            s.Color.a = 0.55f; // полупрозрачная: сквозь сок видна плитка
             s.Size = size * Random.Range(0.85f, 1.15f);
             s.Age = 0f;
             s.Transform.position = new Vector3(position.x, position.y, 0f);

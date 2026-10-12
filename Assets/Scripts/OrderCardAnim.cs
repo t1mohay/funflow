@@ -15,7 +15,7 @@ namespace RecipeSlicer
     public sealed class OrderCardAnim : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
     {
         const float SwayDegrees = 0.4f;     // амплитуда покачивания, градусы
-        const float SwayPeriod = 6f;        // период покачивания, с
+        const float SwayPeriod = 4.8f;      // период покачивания, с
         const float EnterDegrees = 2.5f;    // начальный наклон при появлении экрана
         const float EnterDuration = 0.9f;   // за сколько лист мягко встаёт на место, с
         const float Stagger = 0.08f;        // задержка между листами, с
