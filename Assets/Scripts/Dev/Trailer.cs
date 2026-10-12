@@ -159,7 +159,8 @@ namespace RecipeSlicer
         {
             var board = GameObject.Find("Board").transform;
             int found = 0;
-            foreach (Transform child in board)
+            // Кнопки лежат внутри подвесов листов, поэтому ищем по всей доске, а не только среди прямых детей.
+            foreach (var child in board.GetComponentsInChildren<Transform>())
                 if (child.name == "Choose" && found++ == index) return child;
             return board;
         }
