@@ -14,7 +14,7 @@ namespace RecipeSlicer
     public sealed class GameUI : MonoBehaviour
     {
         /// <summary>Доля ширины экрана под каждую боковую панель; спавнер не залезает под них.</summary>
-        public const float SidePanelFraction = 0.17f;
+        public const float SidePanelFraction = 0.21f;
 
         public static readonly Color TextColor = new Color(1f, 0.96f, 0.9f);
         public static readonly Color GoodColor = new Color(0.56f, 0.93f, 0.45f);
@@ -224,6 +224,7 @@ namespace RecipeSlicer
             _resDetails.fontSize = 32;
 
             _resVerdict.text = Verdict(round);
+            FitSingleLine(_resVerdict, 36, 20);
             _resVerdict.color = scoreColor;
             _resBest.text = newBest ? "Новый рекорд!" : $"Рекорд: {best}/100";
             _resBest.color = newBest ? AccentColor : new Color(1f, 1f, 1f, 0.6f);
@@ -255,6 +256,7 @@ namespace RecipeSlicer
             _resDetails.fontSize = 28;
 
             _resVerdict.text = "Шеф не дождался... Собери весь рецепт за минуту!";
+            FitSingleLine(_resVerdict, 36, 20);
             _resVerdict.color = AccentColor;
             _resBest.text = best >= 0 ? $"Рекорд: {best}/100" : "";
             _resBest.color = new Color(1f, 1f, 1f, 0.6f);
@@ -507,10 +509,7 @@ namespace RecipeSlicer
             // Высота поля — одна строка: при нехватке места название уменьшается, а не переносится.
             var name = AddText(Stretch(NewRect("Name", rt), new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), new Vector2(82f, -26f), new Vector2(wrong ? -10f : -100f, 26f)),
                 def.Name, 36, TextColor, TextAnchor.MiddleLeft, FontStyle.Normal);
-            name.resizeTextForBestFit = true;
-            name.resizeTextMinSize = 20;
-            name.resizeTextMaxSize = 36;
-            name.verticalOverflow = VerticalWrapMode.Truncate;
+            FitSingleLine(name, 36, 16);
 
             // У лишних только иконка и название — без счётчика.
             Text count = null;
@@ -1449,6 +1448,21 @@ namespace RecipeSlicer
             image.color = sprite != null ? Color.white : def.Color;
             image.type = Image.Type.Simple;
             image.preserveAspect = true;
+        }
+
+        /// <summary>
+        /// Текст всегда в одну строку: если не влезает по ширине, шрифт уменьшается ровно настолько, насколько нужно
+        /// (но не меньше minSize). Работает с любым шрифтом — широким или узким.
+        /// </summary>
+        static void FitSingleLine(Text text, int maxSize, int minSize)
+        {
+            text.resizeTextForBestFit = false;
+            text.horizontalOverflow = HorizontalWrapMode.Overflow;
+            text.fontSize = maxSize;
+            float width = text.rectTransform.rect.width;
+            float preferred = text.preferredWidth;
+            if (width > 0f && preferred > width)
+                text.fontSize = Mathf.Max(minSize, Mathf.FloorToInt(maxSize * width / preferred));
         }
 
         Text AddText(RectTransform rt, string text, int size, Color color, TextAnchor anchor, FontStyle style)
