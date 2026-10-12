@@ -81,13 +81,21 @@ namespace RecipeSlicer
         }
 
         /// <summary>
-        /// Вызывать каждый кадр, пока ждём клавишу. true — клавиша нажата и назначена.
+        /// Вызывать каждый кадр, пока ждём клавишу. true — клавиша назначена или ожидание отменено (Esc): обновить подписи.
         /// Новая клавиша действует сразу, но на диск попадает только после SaveBindings.
         /// </summary>
         public static bool PollRebind()
         {
             if (_listening == null || !AnyKeyDown(out var key)) return false;
             int target = (int)_listening.Value;
+            // Esc — отмена переназначения (как привыкли игроки), а не новая клавиша: иначе Esc «уезжал»
+            // на другое действие, и меню переставало закрываться по Esc. Исключение — сама «Пауза / назад»:
+            // ей Esc можно вернуть так же, как любую клавишу.
+            if (IsEscape(key) && _listening.Value != HotkeyAction.Pause)
+            {
+                CancelRebind();
+                return true;
+            }
             // Клавиша уже занята другим действием — меняем их местами, чтобы ничего не осталось без клавиши.
             for (int i = 0; i < Bindings.Length; i++)
             {
@@ -99,6 +107,12 @@ namespace RecipeSlicer
             _blockedFrame = Time.frameCount;
             return true;
         }
+
+#if ENABLE_INPUT_SYSTEM
+        static bool IsEscape(KeyId key) => key == Key.Escape;
+#else
+        static bool IsEscape(KeyId key) => key == KeyCode.Escape;
+#endif
 
         /// <summary>Клавиши по умолчанию (без сохранения — его делает SaveBindings).</summary>
         public static void ResetBindings()

@@ -1600,7 +1600,7 @@ namespace RecipeSlicer
 
             var hotkeys = SettingsTab(screen, 2, "Горячие клавиши", panelPosition, panelSize);
             MenuText(Stretch(NewRect("Hint", hotkeys), new Vector2(0f, 1f), Vector2.one, new Vector2(40f, -76f), new Vector2(-40f, -20f)),
-                "Нажми на клавишу справа, затем — новую клавишу", 30, MenuGreenText, TextAnchor.MiddleCenter, FontStyle.Bold);
+                "Нажми на клавишу справа, затем — новую (Esc — отмена)", 30, MenuGreenText, TextAnchor.MiddleCenter, FontStyle.Bold);
             const float rowHeight = 80f, rowGap = 12f;
             var actions = InputUtil.Actions;
             for (int i = 0; i < actions.Length; i++)
