@@ -128,7 +128,9 @@ namespace RecipeSlicer
             BuildHud();
             _flash = AddImage(Fill(NewRect("Flash", _root)), Color.clear, null);
             _floatLayer = Fill(NewRect("Floaters", _root));
-            _banner = AddText(Place(NewRect("Banner", _root), new Vector2(0.5f, 0.66f), Vector2.zero, new Vector2(1300f, 120f)),
+            // Плашка — только между боковыми панелями, чтобы не залезала на списки.
+            _banner = AddText(Stretch(NewRect("Banner", _root), new Vector2(SidePanelFraction, 0.66f), new Vector2(1f - SidePanelFraction, 0.66f),
+                    new Vector2(20f, -60f), new Vector2(-20f, 60f)),
                 "", 54, AccentColor, TextAnchor.MiddleCenter, FontStyle.Bold);
             _countdown = AddText(Place(NewRect("Countdown", _root), new Vector2(0.5f, 0.48f), Vector2.zero, new Vector2(900f, 320f)),
                 "", 200, TextColor, TextAnchor.MiddleCenter, FontStyle.Bold);
@@ -314,6 +316,7 @@ namespace RecipeSlicer
         public void ShowBanner(string text, Color color, float duration)
         {
             _banner.text = text;
+            FitSingleLine(_banner, 54, 26);
             _bannerColor = color;
             _bannerAge = 0f;
             _bannerDuration = duration;
