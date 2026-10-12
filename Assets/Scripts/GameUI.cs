@@ -498,7 +498,7 @@ namespace RecipeSlicer
             var icon = Place(NewRect("Icon", rt), new Vector2(0f, 0.5f), new Vector2(42f, 0f), new Vector2(60f, 60f));
             SetIcon(AddImage(icon, Color.white, null), def);
 
-            var name = AddText(Stretch(NewRect("Name", rt), Vector2.zero, Vector2.one, new Vector2(82f, 0f), new Vector2(wrong ? -10f : -78f, 0f)),
+            var name = AddText(Stretch(NewRect("Name", rt), Vector2.zero, Vector2.one, new Vector2(82f, 0f), new Vector2(wrong ? -10f : -108f, 0f)),
                 def.Name, 28, TextColor, TextAnchor.MiddleLeft, FontStyle.Normal);
             name.resizeTextForBestFit = true;
             name.resizeTextMinSize = 16;
@@ -509,8 +509,10 @@ namespace RecipeSlicer
             Text count = null;
             if (!wrong)
             {
-                count = AddText(Stretch(NewRect("Count", rt), new Vector2(1f, 0f), Vector2.one, new Vector2(-84f, 0f), new Vector2(-10f, 0f)),
-                    $"0/{need}", 34, TextColor, TextAnchor.MiddleRight, FontStyle.Bold);
+                // Шире и без переноса: «10/12» не должно перескакивать на вторую строку.
+                count = AddText(Stretch(NewRect("Count", rt), new Vector2(1f, 0f), Vector2.one, new Vector2(-104f, 0f), new Vector2(-8f, 0f)),
+                    $"0/{need}", 32, TextColor, TextAnchor.MiddleRight, FontStyle.Bold);
+                count.horizontalOverflow = HorizontalWrapMode.Overflow;
             }
 
             return new Row { Def = def, Need = need, Wrong = wrong, Rect = rt, Background = background, Count = count };
