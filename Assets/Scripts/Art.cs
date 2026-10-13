@@ -12,6 +12,8 @@ namespace RecipeSlicer
         static Sprite _gradient;
         static Sprite[] _splats;
         static Sprite _gloss;
+        static Sprite _softGlow;
+        static Sprite _ring;
         static Font _font;
         static Font _defaultFont;
         static Material _lineMaterial;
@@ -27,6 +29,8 @@ namespace RecipeSlicer
             _gradient = null;
             _splats = null;
             _gloss = null;
+            _softGlow = null;
+            _ring = null;
             _font = null;
             _defaultFont = null;
             _lineMaterial = null;
@@ -255,6 +259,46 @@ namespace RecipeSlicer
                 float dy = y + 0.5f - r;
                 float d = Mathf.Sqrt(dx * dx + dy * dy);
                 float a = Mathf.Clamp01(r - 1f - d + 0.5f);
+                pixels[y * size + x] = new Color32(255, 255, 255, (byte)(a * 255));
+            }
+            tex.SetPixels32(pixels);
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
+        }
+
+        /// <summary>Мягкое свечение диаметром 1 юнит: яркая середина плавно гаснет к краю (ореол бонуса).</summary>
+        public static Sprite SoftGlow
+        {
+            get
+            {
+                if (_softGlow == null) _softGlow = MakeRadial(128, "SoftGlow", d => (1f - d) * (1f - d));
+                return _softGlow;
+            }
+        }
+
+        /// <summary>Тонкое кольцо диаметром 1 юнит с мягкими краями — ударная волна.</summary>
+        public static Sprite Ring
+        {
+            get
+            {
+                if (_ring == null) _ring = MakeRadial(256, "Ring", d => 1f - Mathf.Abs(d - 0.88f) / 0.1f);
+                return _ring;
+            }
+        }
+
+        /// <param name="alpha">Непрозрачность по доле радиуса: 0 — центр, 1 — край.</param>
+        static Sprite MakeRadial(int size, string name, System.Func<float, float> alpha)
+        {
+            var tex = NewTexture(size, size, name);
+            var pixels = new Color32[size * size];
+            float r = size * 0.5f;
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float dx = x + 0.5f - r;
+                float dy = y + 0.5f - r;
+                float d = Mathf.Sqrt(dx * dx + dy * dy) / r;
+                float a = d >= 1f ? 0f : Mathf.Clamp01(alpha(d));
                 pixels[y * size + x] = new Color32(255, 255, 255, (byte)(a * 255));
             }
             tex.SetPixels32(pixels);

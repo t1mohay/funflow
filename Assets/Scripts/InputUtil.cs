@@ -16,18 +16,24 @@ namespace RecipeSlicer
         Dish1,
         Dish2,
         Dish3,
+        Ability1,
+        Ability2,
+        Ability3,
     }
 
     /// <summary>Работает и с новым Input System, и со старым Input Manager — что включено в проекте.</summary>
     public static class InputUtil
     {
         public static readonly HotkeyAction[] Actions =
-            { HotkeyAction.Pause, HotkeyAction.Restart, HotkeyAction.Dish1, HotkeyAction.Dish2, HotkeyAction.Dish3 };
+            {
+                HotkeyAction.Pause, HotkeyAction.Restart, HotkeyAction.Dish1, HotkeyAction.Dish2, HotkeyAction.Dish3,
+                HotkeyAction.Ability1, HotkeyAction.Ability2, HotkeyAction.Ability3,
+            };
 
 #if ENABLE_INPUT_SYSTEM
-        static readonly KeyId[] Defaults = { Key.Escape, Key.R, Key.Digit1, Key.Digit2, Key.Digit3 };
+        static readonly KeyId[] Defaults = { Key.Escape, Key.R, Key.Digit1, Key.Digit2, Key.Digit3, Key.Q, Key.W, Key.E };
 #else
-        static readonly KeyId[] Defaults = { KeyCode.Escape, KeyCode.R, KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3 };
+        static readonly KeyId[] Defaults = { KeyCode.Escape, KeyCode.R, KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Q, KeyCode.W, KeyCode.E };
 #endif
         static readonly KeyId[] Bindings = (KeyId[])Defaults.Clone();
 
@@ -47,6 +53,8 @@ namespace RecipeSlicer
         public static bool RestartPressed() => Pressed(HotkeyAction.Restart);
         public static bool BackPressed() => Pressed(HotkeyAction.Pause);
         public static bool DishPressed(int index) => index >= 0 && index < 3 && Pressed(HotkeyAction.Dish1 + index);
+        /// <summary>Применить способность из слота index (0..2) панели «Бонусы».</summary>
+        public static bool AbilityPressed(int index) => index >= 0 && index < 3 && Pressed(HotkeyAction.Ability1 + index);
 
         /// <summary>
         /// Пока ждём новую клавишу (и в кадр, когда её назначили), горячие клавиши не срабатывают —
