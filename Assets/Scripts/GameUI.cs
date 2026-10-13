@@ -281,19 +281,18 @@ namespace RecipeSlicer
                 sb.Append($"Лишнее: {WrongList(round)}  (−{round.WrongCount * RoundState.WrongPenalty})\n");
             else
                 sb.Append("Ничего лишнего — чистая работа!\n");
-            if (round.OverflowCount > 0)
-                sb.Append($"Перебор: {round.OverflowCount}  (−{round.OverflowCount * RoundState.OverflowPenalty})\n");
-            if (round.ComboCount > 0)
-                sb.Append($"Комбо: {round.ComboCount}  (+{round.ComboBonus})\n");
-            if (round.Cancelled != null)
-                sb.Append($"Клиент отказался: {round.Cancelled.Name}\n");
-            if (round.MultiplierBonus > 0)
-                sb.Append($"Очки ×2: +{round.MultiplierBonus}\n");
-            if (_abilities != null && _abilities.Used > 0)
-                sb.Append($"Способностей применено: {_abilities.Used}\n");
-            _resDetails.text = sb.ToString();
-            // Больше четырёх строк крупным шрифтом не помещаются.
-            _resDetails.fontSize = sb.ToString().Split('\n').Length > 5 ? 27 : 32;
+            // Короткие пункты — через точку в одну строку, чтобы итог не разрастался вниз.
+            var points = new List<string>();
+            if (round.OverflowCount > 0) points.Add($"Перебор: {round.OverflowCount} (−{round.OverflowCount * RoundState.OverflowPenalty})");
+            if (round.ComboCount > 0) points.Add($"Комбо: {round.ComboCount} (+{round.ComboBonus})");
+            if (round.MultiplierBonus > 0) points.Add($"Очки ×2: +{round.MultiplierBonus}");
+            if (points.Count > 0) sb.Append(string.Join("  ·  ", points)).Append('\n');
+            var extra = new List<string>();
+            if (round.Cancelled != null) extra.Add($"Клиент отказался: {round.Cancelled.Name}");
+            if (_abilities != null && _abilities.Used > 0) extra.Add($"Способностей: {_abilities.Used}");
+            if (extra.Count > 0) sb.Append(string.Join("  ·  ", extra)).Append('\n');
+            _resDetails.text = sb.ToString().TrimEnd('\n');
+            FitHeight(_resDetails, 32, 18);
 
             _resVerdict.text = Verdict(round);
             FitSingleLine(_resVerdict, 36, 20);
@@ -326,7 +325,7 @@ namespace RecipeSlicer
             sb.Append('\n');
             if (round.WrongCount > 0) sb.Append($"Лишнее: {WrongList(round)}\n");
             _resDetails.text = sb.ToString();
-            _resDetails.fontSize = 28;
+            FitHeight(_resDetails, 28, 18);
 
             _resVerdict.text = "Шеф не дождался... Собери весь рецепт за минуту!";
             FitSingleLine(_resVerdict, 36, 20);
@@ -2497,6 +2496,19 @@ namespace RecipeSlicer
             float preferred = text.preferredWidth;
             if (width > 0f && preferred > width)
                 text.fontSize = Mathf.Max(minSize, Mathf.FloorToInt(maxSize * width / preferred));
+        }
+
+        /// <summary>Многострочный текст влезает в свою рамку по высоте: шрифт уменьшается, пока не поместится.</summary>
+        static void FitHeight(Text text, int maxSize, int minSize)
+        {
+            text.resizeTextForBestFit = false;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            float height = text.rectTransform.rect.height;
+            for (int size = maxSize; size >= minSize; size--)
+            {
+                text.fontSize = size;
+                if (height <= 0f || text.preferredHeight <= height) return;
+            }
         }
 
         Text AddText(RectTransform rt, string text, int size, Color color, TextAnchor anchor, FontStyle style)
