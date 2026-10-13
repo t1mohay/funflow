@@ -299,6 +299,27 @@ namespace RecipeSlicer
             PlayCue(_taskShort != null ? _taskShort : _go, _taskShort != null ? 0.95f : 0.5f, 1.2f);
         }
 
+        // ───────────────────────── Бонусы и способности ─────────────────────────
+
+        /// <summary>Разрезан бонусный объект: звонкое «дзынь» выше обычного звука задания.</summary>
+        public void PlayBonus()
+        {
+            Play(_taskShort != null ? _taskShort : _complete, 0.85f, 0f, 1.5f);
+            Play(_go, 0.3f, 0f);
+        }
+
+        /// <summary>Применена способность.</summary>
+        public void PlayAbility()
+        {
+            PlayCue(_countdownGo != null ? _countdownGo : _go, _countdownGo != null ? 0.8f : 0.45f, 0.8f);
+        }
+
+        /// <summary>Замедление: музыка плавно опускается ниже и тянется, как в слоу-мо.</summary>
+        public void SetSlowMo(bool slow) => _musicPitchTarget = slow ? SlowMoMusicPitch : 1f;
+
+        const float SlowMoMusicPitch = 0.82f;
+        float _musicPitchTarget = 1f;
+
         // ───────────────────────── 7. Таймер конца раунда ─────────────────────────
 
         /// <param name="secondsLeft">5..1 — каждая секунда звучит на ступень выше.</param>
@@ -397,6 +418,9 @@ namespace RecipeSlicer
             // вниз — быстро (0,15 с), чтобы сигнал сразу был слышен; вверх — плавно
             float rate = _musicA.volume > target ? MusicVolume / 0.15f * Time.unscaledDeltaTime : step;
             if (_musicA.clip != null) _musicA.volume = Mathf.MoveTowards(_musicA.volume, target, rate);
+            float pitch = Mathf.MoveTowards(_musicA.pitch, _musicPitchTarget, Time.unscaledDeltaTime * 0.8f);
+            _musicA.pitch = pitch;
+            _musicB.pitch = pitch;
             if (_musicB.isPlaying)
             {
                 _musicB.volume = Mathf.MoveTowards(_musicB.volume, 0f, step);

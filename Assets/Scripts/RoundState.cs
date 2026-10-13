@@ -24,6 +24,8 @@ namespace RecipeSlicer
 
         public int ComboCount { get; private set; }
         public int ComboBonus { get; private set; }
+        /// <summary>Дополнительные очки от способности «Очки ×2».</summary>
+        public int MultiplierBonus { get; private set; }
 
         public readonly RecipeDef Recipe;
         public float TimeLeft;
@@ -66,7 +68,7 @@ namespace RecipeSlicer
         {
             get
             {
-                int score = PointsPerIngredient * TotalCollected + ComboBonus
+                int score = PointsPerIngredient * TotalCollected + ComboBonus + MultiplierBonus
                             - WrongPenalty * WrongCount - OverflowPenalty * OverflowCount;
                 // Потолка нет: больше 100 — «божественное блюдо».
                 return Mathf.Max(score, 0);
@@ -84,6 +86,18 @@ namespace RecipeSlicer
                 return 0;
             }
         }
+
+        /// <summary>Чем станет разрез этого ингредиента — без изменения состояния (для щита).</summary>
+        public SliceResult Peek(IngredientDef def)
+        {
+            int need = Recipe.NeededCount(def);
+            if (need == 0) return SliceResult.Wrong;
+            _sliced.TryGetValue(def, out int sliced);
+            return sliced >= need ? SliceResult.Overflow : SliceResult.Needed;
+        }
+
+        /// <summary>Очки сверх обычных за время действия «Очки ×2».</summary>
+        public void AddMultiplierBonus(int points) => MultiplierBonus += points;
 
         public SliceResult Register(IngredientDef def)
         {
@@ -124,6 +138,7 @@ namespace RecipeSlicer
             OverflowCount = 0;
             ComboCount = 0;
             ComboBonus = 0;
+            MultiplierBonus = 0;
         }
 
         /// <summary>Самый частый лишний ингредиент, для вердикта шефа.</summary>
