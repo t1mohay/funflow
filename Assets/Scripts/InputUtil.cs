@@ -207,7 +207,11 @@ namespace RecipeSlicer
                 case Key.Backspace: return "Backspace";
                 case Key.Tab: return "Tab";
             }
-            // Подпись с учётом раскладки клавиатуры (например, «R»), иначе — имя из перечисления.
+            // Буквы и цифры — всегда латиницей, как на клавише (Q, а не «Й» в русской раскладке).
+            if (key >= Key.A && key <= Key.Z) return key.ToString();
+            if (key >= Key.Digit1 && key <= Key.Digit9) return (key - Key.Digit1 + 1).ToString();
+            if (key == Key.Digit0) return "0";
+            // Остальное — с учётом раскладки клавиатуры, иначе — имя из перечисления.
             var keyboard = Keyboard.current;
             string display = null;
             if (keyboard != null)

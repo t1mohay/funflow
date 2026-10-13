@@ -761,9 +761,15 @@ namespace RecipeSlicer
                 slot.Name.color = active || ready ? TextColor : new Color(TextColor.r, TextColor.g, TextColor.b, 0.55f);
                 slot.Badge.SetActive(charges > 0);
                 slot.BadgeText.text = charges.ToString();
-                slot.Hint.text = active ? $"ещё {Mathf.CeilToInt(_abilities.TimeLeft(type))} с"
-                    : ready ? $"[{key}] — {slot.Def.Hint}"
+                string hint = active ? $"ещё {Mathf.CeilToInt(_abilities.TimeLeft(type))} с"
+                    : ready ? $"[{key}] {slot.Def.Hint}"
                     : $"[{key}] разрежь бонус";
+                // Подсказка всегда в одну строку внутри слота: длинная — мельче.
+                if (slot.Hint.text != hint)
+                {
+                    slot.Hint.text = hint;
+                    FitSingleLine(slot.Hint, 24, 14);
+                }
                 slot.Hint.color = active ? slot.Def.Color : new Color(TextColor.r, TextColor.g, TextColor.b, ready ? 0.9f : 0.5f);
                 slot.Bar.parent.gameObject.SetActive(active);
                 if (active) slot.Bar.anchorMax = new Vector2(_abilities.ActiveFill(type), 1f);
