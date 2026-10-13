@@ -29,6 +29,9 @@ namespace RecipeSlicer
         public float TimeLeft;
 
         public int WrongCount { get; private set; }
+        /// <summary>От этого ингредиента клиент отказался посреди раунда (или null).</summary>
+        public IngredientDef Cancelled { get; private set; }
+        int _cancelledNeed;
         public int OverflowCount { get; private set; }
         public IReadOnlyDictionary<IngredientDef, int> WrongByType => _wrong;
 
@@ -41,10 +44,30 @@ namespace RecipeSlicer
             TimeLeft = recipe.RoundTime;
         }
 
+        /// <summary>Сколько этого ингредиента нужно сейчас: у отменённого — столько, сколько успели нарезать.</summary>
+        public int Need(IngredientDef def) => def == Cancelled ? _cancelledNeed : Recipe.NeededCount(def);
+
         public int Collected(IngredientDef def)
         {
             _sliced.TryGetValue(def, out int sliced);
-            return Mathf.Min(sliced, Recipe.NeededCount(def));
+            return Mathf.Min(sliced, Need(def));
+        }
+
+        public int TotalNeeded
+        {
+            get
+            {
+                int sum = 0;
+                foreach (var item in Recipe.Needed) sum += Need(item.Ingredient);
+                return sum;
+            }
+        }
+
+        /// <summary>Клиент передумал: ингредиент больше не нужен, уже нарезанное засчитано, дальше он — лишний.</summary>
+        public void Cancel(IngredientDef def)
+        {
+            _cancelledNeed = Collected(def);
+            Cancelled = def;
         }
 
         public int TotalCollected
@@ -57,7 +80,7 @@ namespace RecipeSlicer
             }
         }
 
-        public bool IsComplete => TotalCollected >= Recipe.TotalNeeded;
+        public bool IsComplete => TotalCollected >= TotalNeeded;
 
         /// <summary>Сколько секунд прошло с начала раунда.</summary>
         public float Elapsed => Recipe.RoundTime - TimeLeft;
@@ -87,8 +110,8 @@ namespace RecipeSlicer
 
         public SliceResult Register(IngredientDef def)
         {
-            int need = Recipe.NeededCount(def);
-            if (need == 0)
+            int need = Need(def);
+            if (need == 0 || def == Cancelled)
             {
                 WrongCount++;
                 _wrong.TryGetValue(def, out int wrong);

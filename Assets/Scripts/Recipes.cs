@@ -38,6 +38,9 @@ namespace RecipeSlicer
         public float WrongChanceEnd = 0.3f;
         public float SpeedStart = 1f;
         public float SpeedEnd = 1.35f;
+        /// <summary>Доля пачек «встречных»: два ингредиента с разных сторон пересекаются в центре поля.</summary>
+        public float CrossChanceStart = 0.03f;
+        public float CrossChanceEnd = 0.3f;
     }
 
     public sealed class RecipeDef
@@ -141,6 +144,7 @@ namespace RecipeSlicer
                 IntervalStart = 0.95f, IntervalEnd = 0.5f, MaxBurst = 3,
                 WrongChanceStart = 0.3f, WrongChanceEnd = 0.5f,
                 SpeedStart = 0.95f, SpeedEnd = 1.25f,
+                CrossChanceStart = 0.02f, CrossChanceEnd = 0.25f,
             },
         };
 
@@ -169,6 +173,7 @@ namespace RecipeSlicer
                 IntervalStart = 0.95f, IntervalEnd = 0.5f, MaxBurst = 3,
                 WrongChanceStart = 0.3f, WrongChanceEnd = 0.5f,
                 SpeedStart = 1f, SpeedEnd = 1.35f,
+                CrossChanceStart = 0.04f, CrossChanceEnd = 0.32f,
             },
         };
 
@@ -198,6 +203,7 @@ namespace RecipeSlicer
                 IntervalStart = 1f, IntervalEnd = 0.45f, MaxBurst = 4,
                 WrongChanceStart = 0.38f, WrongChanceEnd = 0.6f,
                 SpeedStart = 1.05f, SpeedEnd = 1.45f,
+                CrossChanceStart = 0.06f, CrossChanceEnd = 0.4f,
             },
         };
 

@@ -18,6 +18,22 @@ namespace RecipeSlicer
         static readonly string[] CountdownSteps = { "3", "2", "1", "Режь!" };
         /// <summary>Максимальная пауза между нужными разрезами внутри одного комбо, в секундах.</summary>
         const float ComboWindow = 0.25f;
+        /// <summary>Высота половины кадра в мире. Камера может приближаться (Fx.SetZoom), а поле и фон считаются от этой величины.</summary>
+        const float CameraSize = 5f;
+        /// <summary>Серия нужных разрезов без ошибок, с которой клинок золотой и огненный.</summary>
+        const int HotStreak = 5, FireStreak = 12;
+        /// <summary>Комбо из стольких нужных и больше — короткое замедление времени с приближением.</summary>
+        const int SlowMoCombo = 4;
+        const float SlowMoDuration = 0.6f;
+        const float SlowMoScale = 0.3f;
+        /// <summary>«Без чего» для плашки «Клиент передумал: без …!».</summary>
+        static readonly Dictionary<string, string> WithoutName = new Dictionary<string, string>
+        {
+            { "tomato", "помидоров" }, { "cucumber", "огурцов" }, { "lettuce", "салата" }, { "onion", "лука" },
+            { "pepper", "перца" }, { "cheese", "сыра" }, { "mushroom", "грибов" }, { "bacon", "бекона" },
+            { "olive", "оливок" }, { "shrimp", "креветок" }, { "chili", "чили" }, { "lime", "лайма" },
+            { "coconut", "кокоса" }, { "lemongrass", "лемонграсса" }, { "galangal", "галангала" },
+        };
         static readonly Color BackgroundTop = new Color32(0x4A, 0x33, 0x26, 0xFF);
         static readonly Color BackgroundBottom = new Color32(0x1E, 0x14, 0x0F, 0xFF);
         /// <summary>Затемнение картинки-фона: меньше — темнее, ингредиенты контрастнее.</summary>
@@ -29,7 +45,7 @@ namespace RecipeSlicer
         /// <summary>Идёт раунд и можно резать (не пауза, не отсчёт, не результат).</summary>
         public bool IsSlicing => _state == State.Playing && !IsPaused;
         public Rect PlayArea { get; private set; }
-        public float ViewHalfHeight => _cam.orthographicSize;
+        public float ViewHalfHeight => CameraSize;
 
         Camera _cam;
         SpriteRenderer _background;
@@ -37,6 +53,13 @@ namespace RecipeSlicer
         GameUI _ui;
         Fx _fx;
         Spawner _spawner;
+        SwipeInput _swipe;
+        int _streak;
+        /// <summary>Когда (доля раунда) клиент передумает; новое значение каждый раунд.</summary>
+        float _changeMindAt;
+        bool _mindChecked;
+        float _slowMoTime;
+        Vector2 _slowMoFocus;
         readonly List<Ingredient> _active = new List<Ingredient>();
 
         State _state;
@@ -70,7 +93,8 @@ namespace RecipeSlicer
             Sfx = AddChild<Sfx>("Sfx");
             _fx = AddChild<Fx>("Fx");
             _fx.Init(_cam);
-            AddChild<SwipeInput>("Swipe").Init(this, _cam);
+            _swipe = AddChild<SwipeInput>("Swipe");
+            _swipe.Init(this, _cam);
             _ui = AddChild<GameUI>("UI");
             _ui.Init(this, _cam);
             AddChild<KnifeCursor>("Cursor");
@@ -91,7 +115,7 @@ namespace RecipeSlicer
             if (FindAnyObjectByType<AudioListener>() == null) _cam.gameObject.AddComponent<AudioListener>();
 
             _cam.orthographic = true;
-            _cam.orthographicSize = 5f;
+            _cam.orthographicSize = CameraSize;
             _cam.transform.SetPositionAndRotation(new Vector3(0f, 0f, -10f), Quaternion.identity);
             _cam.clearFlags = CameraClearFlags.SolidColor;
             _cam.backgroundColor = BackgroundBottom;
@@ -116,6 +140,9 @@ namespace RecipeSlicer
             _spawner.Reset();
             _lastTickSecond = -1;
             _comboSize = 0;
+            ResetStreak();
+            _changeMindAt = Random.Range(0.42f, 0.56f);
+            _mindChecked = false;
             _cheated = false;
             InputUtil.ResetKonami();
             _comboAge = ComboWindow;
@@ -171,7 +198,7 @@ namespace RecipeSlicer
         void ClearPause()
         {
             IsPaused = false;
-            Time.timeScale = 1f;
+            StopSlowMo();
             _ui.ShowPause(false);
         }
 
@@ -192,6 +219,7 @@ namespace RecipeSlicer
         void Update()
         {
             UpdateLayout();
+            UpdateSlowMo();
 
             if (IsPaused)
             {
@@ -288,6 +316,11 @@ namespace RecipeSlicer
             _round.TimeLeft -= Time.deltaTime;
             float progress = Mathf.Clamp01(1f - _round.TimeLeft / _recipe.RoundTime);
             _spawner.Tick(Time.deltaTime, progress, _round);
+            if (_round.Cancelled == null && !_mindChecked && progress >= _changeMindAt)
+            {
+                ChangeMind();
+                if (_state != State.Playing) return;
+            }
             UpdateCombo(Time.deltaTime);
             int second = Mathf.CeilToInt(_round.TimeLeft);
             if (second <= 5 && second > 0 && second != _lastTickSecond)
@@ -320,6 +353,7 @@ namespace RecipeSlicer
             _comboSize = 0;
             if (size < RoundState.ComboMin) return;
 
+            if (size >= SlowMoCombo) StartSlowMo(_comboPosition);
             int bonus = _round.AddCombo(size);
             Sfx.PlayCombo();
             _fx.Shake(0.1f, 0.12f);
@@ -352,6 +386,7 @@ namespace RecipeSlicer
 
         void ShowResults()
         {
+            StopSlowMo();
             ClearIngredients();
             int best = BestScore(_recipe);
             bool newBest = false;
@@ -380,8 +415,11 @@ namespace RecipeSlicer
         {
             // Промах: упал ингредиент, которого рецепту ещё не хватает.
             if (_state == State.Playing && !ingredient.IsSliced
-                && _round.Collected(ingredient.Def) < _recipe.NeededCount(ingredient.Def))
+                && _round.Collected(ingredient.Def) < _round.Need(ingredient.Def) && ingredient.Def != _round.Cancelled)
+            {
                 Sfx.PlayMiss();
+                ResetStreak(); // упустил нужный — клинок остывает
+            }
             _active.Remove(ingredient);
             Destroy(ingredient.gameObject);
         }
@@ -427,16 +465,18 @@ namespace RecipeSlicer
             switch (result)
             {
                 case SliceResult.Needed:
-                    Sfx.PlayGood(_round.Collected(def) / (float)_recipe.NeededCount(def));
+                    Sfx.PlayGood(_round.Collected(def) / (float)Mathf.Max(1, _round.Need(def)));
                     _ui.Floating(textPos, $"{def.Name} +{RoundState.PointsPerIngredient}", GameUI.GoodColor);
                     // Нужные подряд с промежутком меньше ComboWindow — одно движение.
                     _comboSize = _comboAge < ComboWindow ? _comboSize + 1 : 1;
                     _comboAge = 0f;
                     _comboPosition = textPos;
+                    AddStreak(textPos);
                     break;
 
                 case SliceResult.Overflow:
                     _comboSize = 0;
+                    ResetStreak();
                     Sfx.PlayOverflow();
                     _fx.Shake(0.12f, 0.15f);
                     _ui.Floating(textPos, $"Уже хватит! −{RoundState.OverflowPenalty}", GameUI.AccentColor);
@@ -444,6 +484,7 @@ namespace RecipeSlicer
 
                 case SliceResult.Wrong:
                     _comboSize = 0;
+                    ResetStreak();
                     Sfx.PlayBad();
                     _fx.Shake(0.35f, 0.3f);
                     _ui.Flash(GameUI.BadColor);
@@ -460,6 +501,84 @@ namespace RecipeSlicer
             }
         }
 
+        /// <summary>
+        /// Клиент передумал: один недособранный ингредиент (осталось нарезать хотя бы два) больше не нужен —
+        /// он переезжает в «НЕ НУЖНО», нарезанное засчитано. Если без него рецепт уже собран — блюдо готово.
+        /// </summary>
+        void ChangeMind()
+        {
+            _mindChecked = true;
+            var candidates = new List<IngredientDef>();
+            foreach (var item in _recipe.Needed)
+                if (item.Count - _round.Collected(item.Ingredient) >= 2) candidates.Add(item.Ingredient);
+            if (candidates.Count == 0) return;
+
+            var def = candidates[Random.Range(0, candidates.Count)];
+            _round.Cancel(def);
+            string without = WithoutName.TryGetValue(def.Id, out var name) ? name : def.Name.ToLowerInvariant();
+            _ui.OnMindChanged(_round);
+            _ui.ShowBanner($"Клиент передумал: без {without}!", GameUI.AccentColor, 2.6f);
+            _ui.Flash(GameUI.AccentColor);
+            Sfx.PlayCountdownGo();
+
+            if (_round.IsComplete)
+            {
+                Sfx.PlayComplete();
+                FinishRound("Блюдо готово!", GameUI.GoodColor);
+            }
+        }
+
+        // ───────────────────────── Серия и замедление ─────────────────────────
+
+        static int HeatLevel(int streak) => streak >= FireStreak ? 2 : streak >= HotStreak ? 1 : 0;
+
+        /// <summary>Ещё один нужный подряд: на 5-м клинок раскаляется, на 12-м — огненный.</summary>
+        void AddStreak(Vector3 textPos)
+        {
+            int before = HeatLevel(_streak);
+            _streak++;
+            int level = HeatLevel(_streak);
+            _swipe.SetHeat(level);
+            if (level == before) return;
+            if (level == 1) _ui.Floating(textPos + Vector3.up * 0.7f, $"Серия ×{_streak}! Клинок раскалён", GameUI.AccentColor, 48);
+            else _ui.Floating(textPos + Vector3.up * 0.7f, "Огненный клинок!", new Color(1f, 0.55f, 0.2f), 56);
+        }
+
+        void ResetStreak()
+        {
+            _streak = 0;
+            if (_swipe != null) _swipe.SetHeat(0);
+        }
+
+        void StartSlowMo(Vector2 focus)
+        {
+            _slowMoTime = SlowMoDuration;
+            _slowMoFocus = focus;
+        }
+
+        /// <summary>Замедление: время резко проседает и плавно возвращается; камера в это время чуть ближе к комбо.</summary>
+        void UpdateSlowMo()
+        {
+            if (_slowMoTime <= 0f || IsPaused) return;
+            _slowMoTime -= UiTime.Delta;
+            if (_slowMoTime <= 0f)
+            {
+                StopSlowMo();
+                return;
+            }
+            float k = 1f - _slowMoTime / SlowMoDuration; // 0 → 1
+            float depth = k < 0.15f ? k / 0.15f : 1f - Mathf.SmoothStep(0f, 1f, (k - 0.15f) / 0.85f);
+            Time.timeScale = Mathf.Lerp(1f, SlowMoScale, depth);
+            _fx.SetZoom(depth, _slowMoFocus);
+        }
+
+        void StopSlowMo()
+        {
+            _slowMoTime = 0f;
+            Time.timeScale = IsPaused ? 0f : 1f;
+            if (_fx != null) _fx.SetZoom(0f, Vector2.zero);
+        }
+
         static float DistanceToSegment(Vector2 point, Vector2 a, Vector2 b)
         {
             Vector2 ab = b - a;
@@ -472,7 +591,7 @@ namespace RecipeSlicer
 
         void UpdateLayout()
         {
-            float halfH = _cam.orthographicSize;
+            float halfH = CameraSize;
             float halfW = halfH * _cam.aspect;
             float side = 2f * halfW * GameUI.SidePanelFraction;
             PlayArea = Rect.MinMaxRect(-halfW + side, -halfH, halfW - side, halfH);

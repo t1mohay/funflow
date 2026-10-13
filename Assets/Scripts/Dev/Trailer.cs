@@ -99,10 +99,12 @@ namespace RecipeSlicer
             if (_game.IsSlicing)
             {
                 _recording = false;
-                var last = round.Recipe.Needed[0].Ingredient;
+                // Остаётся один ингредиент — не тот, от которого отказался клиент; нормы — текущие (Need).
+                var last = round.Recipe.Needed[0].Ingredient == round.Cancelled ? round.Recipe.Needed[1].Ingredient : round.Recipe.Needed[0].Ingredient;
                 foreach (var item in round.Recipe.Needed)
                 {
-                    int target = item.Ingredient == last ? item.Count - 1 : item.Count;
+                    int need = round.Need(item.Ingredient);
+                    int target = item.Ingredient == last ? need - 1 : need;
                     for (int k = round.Collected(item.Ingredient); k < target; k++) round.Register(item.Ingredient);
                 }
                 _ui.OnSliced(null, round);
@@ -248,7 +250,7 @@ namespace RecipeSlicer
             {
                 if (ing == null || ing.IsSliced || !_velocity.ContainsKey(ing)) continue;
                 var p = Predict(ing, lead);
-                bool needed = round.Collected(ing.Def) < recipe.NeededCount(ing.Def);
+                bool needed = ing.Def != round.Cancelled && round.Collected(ing.Def) < round.Need(ing.Def);
                 bool visible = p.x > area.xMin + 0.3f && p.x < area.xMax - 0.3f && p.y > area.yMin + 0.8f && p.y < area.yMax - 0.5f;
                 if (needed && visible) good.Add((ing, p));
                 else bad.Add((ing, p));

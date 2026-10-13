@@ -42,6 +42,9 @@ namespace RecipeSlicer
 
         Camera _cam;
         Vector3 _camBase;
+        float _camSize;
+        float _zoom;
+        Vector2 _zoomFocus;
         float _shakeTime;
         float _shakeDuration;
         float _shakeAmp;
@@ -50,6 +53,7 @@ namespace RecipeSlicer
         {
             _cam = cam;
             _camBase = cam.transform.position;
+            _camSize = cam.orthographicSize;
         }
 
         public void Burst(Vector2 position, Color color, int count)
@@ -188,17 +192,29 @@ namespace RecipeSlicer
             }
         }
 
+        /// <summary>
+        /// Приближение камеры к точке: amount 0 — обычный вид, 1 — максимум (на 8 % ближе и чуть к фокусу).
+        /// Мир (фон, ингредиенты) приближается, интерфейс — нет.
+        /// </summary>
+        public void SetZoom(float amount, Vector2 focus)
+        {
+            _zoom = Mathf.Clamp01(amount);
+            _zoomFocus = focus;
+        }
+
         void LateUpdate()
         {
+            _cam.orthographicSize = _camSize * (1f - 0.08f * _zoom);
+            var basePos = _camBase + (Vector3)((_zoomFocus - (Vector2)_camBase) * (0.15f * _zoom));
             if (_shakeTime > 0f)
             {
                 _shakeTime -= UiTime.Delta;
                 float k = Mathf.Clamp01(_shakeTime / _shakeDuration);
-                _cam.transform.position = _camBase + (Vector3)(Random.insideUnitCircle * (_shakeAmp * k));
+                _cam.transform.position = basePos + (Vector3)(Random.insideUnitCircle * (_shakeAmp * k));
             }
             else
             {
-                _cam.transform.position = _camBase;
+                _cam.transform.position = basePos;
             }
         }
     }

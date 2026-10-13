@@ -200,7 +200,7 @@ namespace RecipeSlicer
             _timerPlate.SetActive(true);
             _score.gameObject.SetActive(true);
             _pauseButton.SetActive(true);
-            BuildRows(round.Recipe);
+            BuildRows(round);
             RefreshRows(round);
             UpdateTimer(round);
         }
@@ -239,7 +239,8 @@ namespace RecipeSlicer
             _resScore.text = $"{round.Score}/100";
             _resScore.fontSize = 150;
             _resScore.color = scoreColor;
-            _resStars.text = new string('★', stars) + new string('☆', 3 - stars);
+            _resStars.text = "";
+            StartResultReveal(round.Score, stars, rollScore: true);
 
             var sb = new StringBuilder();
             sb.Append($"Весь рецепт собран за {Mathf.CeilToInt(round.Elapsed)} с!\n");
@@ -251,8 +252,11 @@ namespace RecipeSlicer
                 sb.Append($"Перебор: {round.OverflowCount}  (−{round.OverflowCount * RoundState.OverflowPenalty})\n");
             if (round.ComboCount > 0)
                 sb.Append($"Комбо: {round.ComboCount}  (+{round.ComboBonus})\n");
+            if (round.Cancelled != null)
+                sb.Append($"Клиент отказался: {round.Cancelled.Name}\n");
             _resDetails.text = sb.ToString();
-            _resDetails.fontSize = 32;
+            // Больше четырёх строк крупным шрифтом не помещаются.
+            _resDetails.fontSize = sb.ToString().Split('\n').Length > 5 ? 27 : 32;
 
             _resVerdict.text = Verdict(round);
             FitSingleLine(_resVerdict, 36, 20);
@@ -268,14 +272,15 @@ namespace RecipeSlicer
             _resScore.fontSize = 110;
             _resScore.color = BadColor;
             _resStars.text = "";
+            StartResultReveal(0, 0, rollScore: false);
 
             var sb = new StringBuilder();
-            sb.Append($"Собрано по рецепту: {round.TotalCollected}/{round.Recipe.TotalNeeded}\n");
+            sb.Append($"Собрано по рецепту: {round.TotalCollected}/{round.TotalNeeded}\n");
             sb.Append("Не хватило: ");
             bool first = true;
             foreach (var item in round.Recipe.Needed)
             {
-                int missing = item.Count - round.Collected(item.Ingredient);
+                int missing = round.Need(item.Ingredient) - round.Collected(item.Ingredient);
                 if (missing <= 0) continue;
                 if (!first) sb.Append(", ");
                 sb.Append($"{item.Ingredient.Name} ×{missing}");
@@ -336,6 +341,15 @@ namespace RecipeSlicer
                 if (row.Def == def) row.Punch = 1f;
         }
 
+        /// <summary>Клиент передумал: перестроить списки и подбросить строку отменённого ингредиента в «НЕ НУЖНО».</summary>
+        public void OnMindChanged(RoundState round)
+        {
+            BuildRows(round);
+            RefreshRows(round);
+            foreach (var row in _rows)
+                if (row.Wrong && row.Def == round.Cancelled) row.Punch = 1.6f;
+        }
+
         public void SetCountdown(string text)
         {
             _countdown.text = text;
@@ -394,6 +408,7 @@ namespace RecipeSlicer
                 float s = 1f + 0.15f * row.Punch;
                 row.Rect.localScale = new Vector3(s, s, 1f);
             }
+            UpdateResultReveal(dt);
 
             for (int i = _floaters.Count - 1; i >= 0; i--)
             {
@@ -440,6 +455,70 @@ namespace RecipeSlicer
             float fadeStart = Mathf.Max(life - 0.3f, life * 0.6f);
             color.a = age < fadeStart ? 1f : 1f - (age - fadeStart) / (life - fadeStart);
             text.color = color;
+        }
+
+        // ───────────────────────── Итоги: накрутка счёта и звёзды ─────────────────────────
+
+        // Звёзды результата выпрыгивают по одной, счёт накручивается от нуля.
+        Text[] _starLabels;
+        int _starsEarned, _starsShown, _scoreTarget;
+        float _resultAge = 99f;
+        bool _rollScore;
+
+        /// <summary>Три звезды рядом на месте строки звёзд результата.</summary>
+        void BuildStarLabels()
+        {
+            _starLabels = new Text[3];
+            for (int i = 0; i < 3; i++)
+                _starLabels[i] = AddText(Place(NewRect("Star", _resStars.rectTransform), new Vector2(0.5f, 0.5f), new Vector2((i - 1) * 96f, 0f),
+                    new Vector2(110f, 100f)), "☆", 80, AccentColor, TextAnchor.MiddleCenter, FontStyle.Normal);
+        }
+
+        /// <summary>Запустить показ итогов: счёт накручивается от нуля, звёзды выпрыгивают по одной.</summary>
+        void StartResultReveal(int score, int stars, bool rollScore)
+        {
+            _scoreTarget = score;
+            _starsEarned = stars;
+            _starsShown = 0;
+            _rollScore = rollScore;
+            _resultAge = 0f;
+            foreach (var label in _starLabels)
+            {
+                label.gameObject.SetActive(rollScore);
+                label.text = "☆";
+                label.color = new Color(1f, 1f, 1f, 0.3f);
+                label.rectTransform.localScale = Vector3.one;
+            }
+            if (rollScore) _resScore.text = "0/100";
+        }
+
+        void UpdateResultReveal(float dt)
+        {
+            if (!_results.activeSelf || !_rollScore || _resultAge > 3f) return;
+            _resultAge += dt;
+
+            const float rollTime = 0.8f;
+            float k = Mathf.Clamp01(_resultAge / rollTime);
+            int shown = Mathf.RoundToInt(_scoreTarget * (1f - (1f - k) * (1f - k)));
+            _resScore.text = $"{shown}/100";
+
+            // Звёзды — после счёта, по одной, с нотой всё выше.
+            for (int i = 0; i < _starsEarned; i++)
+            {
+                float appear = rollTime + 0.15f + i * 0.35f;
+                var label = _starLabels[i];
+                if (_resultAge < appear) continue;
+                if (_starsShown <= i)
+                {
+                    _starsShown = i + 1;
+                    label.text = "★";
+                    label.color = AccentColor;
+                    _game.Sfx.PlayGood((i + 1) / 3f);
+                }
+                float a = _resultAge - appear;
+                float s = a < 0.18f ? Mathf.Lerp(1.9f, 0.9f, a / 0.18f) : Mathf.Lerp(0.9f, 1f, Mathf.Clamp01((a - 0.18f) / 0.12f));
+                label.rectTransform.localScale = new Vector3(s, s, 1f);
+            }
         }
 
         // ───────────────────────── Построение ─────────────────────────
@@ -506,15 +585,21 @@ namespace RecipeSlicer
             return Stretch(NewRect("List", panel), Vector2.zero, Vector2.one, new Vector2(16f, SidePanelBottom), new Vector2(-16f, -SidePanelTop));
         }
 
-        void BuildRows(RecipeDef recipe)
+        void BuildRows(RoundState round)
         {
+            var recipe = round.Recipe;
             foreach (var row in _rows) Destroy(row.Rect.gameObject);
             _rows.Clear();
-            for (int i = 0; i < recipe.Needed.Length; i++)
-                _rows.Add(MakeRow(_neededList, i, recipe.Needed[i].Ingredient, recipe.Needed[i].Count, false));
-            for (int i = 0; i < recipe.Wrong.Length; i++)
-                _rows.Add(MakeRow(_wrongList, i, recipe.Wrong[i], 0, true));
-            FitSidePanels(Mathf.Max(recipe.Needed.Length, recipe.Wrong.Length));
+            int needed = 0;
+            foreach (var item in recipe.Needed)
+                if (item.Ingredient != round.Cancelled)
+                    _rows.Add(MakeRow(_neededList, needed++, item.Ingredient, item.Count, false));
+            // «НЕ НУЖНО»: лишние блюда и ингредиент, от которого отказался клиент.
+            var wrong = new List<IngredientDef>(recipe.Wrong);
+            if (round.Cancelled != null) wrong.Add(round.Cancelled);
+            for (int i = 0; i < wrong.Count; i++)
+                _rows.Add(MakeRow(_wrongList, i, wrong[i], 0, true));
+            FitSidePanels(Mathf.Max(needed, wrong.Count));
 
             var dish = Art.DishSprite(recipe);
             _dishBadge.sprite = dish;
@@ -1195,6 +1280,7 @@ namespace RecipeSlicer
             _resIcon.preserveAspect = true;
             _resScore = AddText(Top(panel, 120f, 170f), "", 150, AccentColor, TextAnchor.MiddleCenter, FontStyle.Bold);
             _resStars = AddText(Top(panel, 290f, 90f), "", 80, AccentColor, TextAnchor.MiddleCenter, FontStyle.Normal);
+            BuildStarLabels();
             _resDetails = AddText(Top(panel, 395f, 170f), "", 32, TextColor, TextAnchor.UpperCenter, FontStyle.Normal);
             _resVerdict = AddText(Top(panel, 570f, 60f), "", 36, GoodColor, TextAnchor.MiddleCenter, FontStyle.Italic);
             _resBest = AddText(Top(panel, 630f, 44f), "", 30, AccentColor, TextAnchor.MiddleCenter, FontStyle.Bold);

@@ -2,7 +2,9 @@ using UnityEngine;
 
 namespace RecipeSlicer
 {
-    /// <summary>Выбрасывает ингредиенты снизу по дуге; частота, количество и доля лишних растут к концу раунда.</summary>
+    /// <summary>
+    /// Выбрасывает ингредиенты снизу по дуге; частота, количество, доля лишних и «встречных» пар растут к концу раунда.
+    /// </summary>
     public sealed class Spawner
     {
         const float Gravity = 9f;
@@ -11,6 +13,10 @@ namespace RecipeSlicer
         const int MaxSameSide = 2;
         const float ClusterChance = 0.5f;
         const float ClusterStep = 1.3f;
+        /// <summary>Во «встречной» паре один из двух — лишний с такой вероятностью.</summary>
+        const float CrossWrongChance = 0.6f;
+        /// <summary>Отменённый клиентом ингредиент летит как лишний с такой долей — ловушка привычки.</summary>
+        const float CancelledWrongShare = 0.35f;
 
         readonly GameManager _game;
         float _timer;
@@ -42,6 +48,13 @@ namespace RecipeSlicer
             float speed = Mathf.Lerp(d.SpeedStart, d.SpeedEnd, progress);
             float wrongChance = Mathf.Lerp(d.WrongChanceStart, d.WrongChanceEnd, progress);
 
+            if (Random.value < Mathf.Lerp(d.CrossChanceStart, d.CrossChanceEnd, progress))
+            {
+                SpawnCrossing(round, speed);
+                _game.Sfx.PlayLaunch();
+                return;
+            }
+
             // Иногда пачка летит «гроздью»: с одной стороны столбиком — её можно срезать одним свайпом (комбо).
             bool cluster = count >= 2 && Random.value < ClusterChance;
             var area = _game.PlayArea;
@@ -56,7 +69,7 @@ namespace RecipeSlicer
             {
                 bool wrong = !wrongSpawned && Random.value < wrongChance;
                 wrongSpawned |= wrong;
-                var def = wrong ? PickWrong(round.Recipe) : PickNeeded(round);
+                var def = wrong ? PickWrong(round) : PickNeeded(round);
                 if (cluster)
                     Spawn(def, speed, clusterLeft, clusterY + ClusterStep * i, clusterApex + ClusterStep * i, clusterTravel);
                 else
@@ -64,6 +77,25 @@ namespace RecipeSlicer
                         Random.Range(area.yMax - 4f, area.yMax - 1.3f), Random.Range(0.55f, 0.95f));
             }
             _game.Sfx.PlayLaunch();
+        }
+
+        /// <summary>
+        /// «Встречные»: два ингредиента одновременно с разных сторон по зеркальным дугам — пересекаются около
+        /// вершины в центре поля. Часто один из них лишний: резать надо до или после пересечения.
+        /// </summary>
+        void SpawnCrossing(RoundState round, float speed)
+        {
+            var area = _game.PlayArea;
+            float y = Random.Range(area.yMin + 1f, area.yMin + 2.5f);
+            float apex = Random.Range(area.yMax - 3.5f, area.yMax - 1.5f);
+            // Пролёт около всей ширины поля — встреча у вершины; небольшой разброс сдвигает её вбок и по высоте.
+            float travel = Random.Range(0.85f, 1.05f);
+            bool wrongPair = Random.value < CrossWrongChance;
+            bool wrongLeft = Random.value < 0.5f;
+            var left = wrongPair && wrongLeft ? PickWrong(round) : PickNeeded(round);
+            var right = wrongPair && !wrongLeft ? PickWrong(round) : PickNeeded(round);
+            Spawn(left, speed, true, y, apex, travel);
+            Spawn(right, speed, false, y, apex, travel);
         }
 
         /// <summary>Сторона случайная, но не больше MaxSameSide подряд с одной стороны.</summary>
@@ -75,7 +107,12 @@ namespace RecipeSlicer
             return fromLeft;
         }
 
-        static IngredientDef PickWrong(RecipeDef recipe) => recipe.Wrong[Random.Range(0, recipe.Wrong.Length)];
+        static IngredientDef PickWrong(RoundState round)
+        {
+            if (round.Cancelled != null && Random.value < CancelledWrongShare) return round.Cancelled;
+            var wrong = round.Recipe.Wrong;
+            return wrong[Random.Range(0, wrong.Length)];
+        }
 
         static IngredientDef PickNeeded(RoundState round)
         {
@@ -94,7 +131,9 @@ namespace RecipeSlicer
 
         static float Weight(RoundState round, RecipeItem item)
         {
-            int remaining = item.Count - round.Collected(item.Ingredient);
+            // От отменённого клиент отказался — как «нужный» он больше не летит.
+            if (item.Ingredient == round.Cancelled) return 0f;
+            int remaining = round.Need(item.Ingredient) - round.Collected(item.Ingredient);
             return remaining > 0 ? 1f + remaining : CompletedWeight;
         }
 
