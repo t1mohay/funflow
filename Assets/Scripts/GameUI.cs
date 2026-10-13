@@ -1564,12 +1564,14 @@ namespace RecipeSlicer
         {
             var screen = Fill(NewRect("PauseScreen", pause));
             _pauseScreen = screen.gameObject;
-            PopupBackdrop(screen, new Vector2(0f, 60f), new Vector2(620f, 840f));
+            // Пять кнопок с прежним шагом 150 — подложка вытянута вниз, заголовок на месте.
+            PopupBackdrop(screen, new Vector2(0f, -5f), new Vector2(620f, 970f));
             PopupTitle(screen, "Пауза", new Vector2(0f, 390f));
             MenuButton(screen, new Vector2(0f, 210f), "Продолжить", true, _game.Resume);
             MenuButton(screen, new Vector2(0f, 60f), "Заново", false, _game.Restart);
-            MenuButton(screen, new Vector2(0f, -90f), "Настройки", false, () => OpenSettings(true));
-            MenuButton(screen, new Vector2(0f, -240f), "Главное меню", false, _game.BackToMenu);
+            MenuButton(screen, new Vector2(0f, -90f), "Выбор блюда", false, _game.ToDishSelect);
+            MenuButton(screen, new Vector2(0f, -240f), "Настройки", false, () => OpenSettings(true));
+            MenuButton(screen, new Vector2(0f, -390f), "Главное меню", false, _game.BackToMenu);
         }
 
         // ───────────────────────── Настройки ─────────────────────────
@@ -1609,7 +1611,7 @@ namespace RecipeSlicer
 
             var hotkeys = SettingsTab(screen, 2, "Горячие клавиши", panelPosition, panelSize);
             MenuText(Stretch(NewRect("Hint", hotkeys), new Vector2(0f, 1f), Vector2.one, new Vector2(40f, -76f), new Vector2(-40f, -20f)),
-                "Нажми на клавишу справа, затем — новую (Esc — отмена)", 30, MenuGreenText, TextAnchor.MiddleCenter, FontStyle.Bold);
+                "Нажми на клавишу справа, затем — новую клавишу", 30, MenuGreenText, TextAnchor.MiddleCenter, FontStyle.Bold);
             const float rowHeight = 80f, rowGap = 12f;
             var actions = InputUtil.Actions;
             for (int i = 0; i < actions.Length; i++)
