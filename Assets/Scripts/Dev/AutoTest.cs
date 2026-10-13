@@ -88,6 +88,29 @@ namespace RecipeSlicer
                 if (!shot && Time.realtimeSinceStartup > end - 5.85f) { Shot("03_round"); shot = true; }
                 yield return null;
             }
+
+            // Бонус: ждём его вылета (до 15 с), режем, снимаем стоп-кадр и применяем способность.
+            float bonusEnd = Time.realtimeSinceStartup + 15f;
+            Ingredient bonus = null;
+            while (bonus == null && Time.realtimeSinceStartup < bonusEnd)
+            {
+                foreach (var ing in FindObjectsByType<Ingredient>())
+                    if (ing != null && !ing.IsSliced && ing.Def.IsBonus && ing.Position.y > -3f) bonus = ing;
+                if (bonus == null) yield return null;
+            }
+            if (bonus != null)
+            {
+                var type = bonus.Def.Ability;
+                var p = bonus.Position;
+                game.OnSwipe(p + new Vector2(-1f, -0.4f), p + new Vector2(1f, 0.4f));
+                yield return new WaitForSecondsRealtime(0.12f);
+                Shot("06_bonus_hit");
+                yield return new WaitForSecondsRealtime(1f);
+                game.ActivateAbility(type);
+                yield return new WaitForSecondsRealtime(1.2f);
+                Shot("07_ability_" + type);
+            }
+            else Debug.LogWarning("AutoTest: бонус не вылетел");
             Shot("04_round_later");
             Time.timeScale = 6f;
             yield return new WaitForSecondsRealtime(9.5f);
