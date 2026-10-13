@@ -40,6 +40,18 @@ namespace RecipeSlicer
         readonly List<Particle> _live = new List<Particle>();
         readonly Stack<Particle> _pool = new Stack<Particle>();
 
+        /// <summary>Расходящееся кольцо — ударная волна от разрезанного бонуса.</summary>
+        sealed class Wave
+        {
+            public SpriteRenderer Renderer;
+            public Color Color;
+            public float Size;
+            public float Age;
+            public float Life;
+        }
+
+        readonly List<Wave> _waves = new List<Wave>();
+
         Camera _cam;
         Vector3 _camBase;
         float _camSize;
@@ -73,6 +85,62 @@ namespace RecipeSlicer
                 p.Renderer.color = p.Color;
                 p.Transform.gameObject.SetActive(true);
                 _live.Add(p);
+            }
+        }
+
+        /// <summary>Ударная волна: кольцо быстро расширяется до size и тает. Идёт в реальном времени — видно и в замедлении.</summary>
+        public void Shockwave(Vector2 position, Color color, float size, float life = 0.45f)
+        {
+            var go = new GameObject("Wave");
+            go.transform.SetParent(transform, false);
+            go.transform.position = position;
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = Art.Ring;
+            sr.color = color;
+            sr.sortingOrder = ParticleSortingOrder + 1;
+            go.transform.localScale = Vector3.zero;
+            _waves.Add(new Wave { Renderer = sr, Color = color, Size = size, Life = life });
+        }
+
+        /// <summary>Искры бонуса: крупнее и быстрее обычных брызг, с белыми вспышками.</summary>
+        public void Sparkle(Vector2 position, Color color, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                var p = Get();
+                float angle = Random.value * Mathf.PI * 2f;
+                float speed = Random.Range(4f, 11f);
+                p.Velocity = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * speed + Vector2.up * 2f;
+                p.Color = Random.value < 0.35f ? Color.white : Color.Lerp(color, Color.white, Random.value * 0.5f);
+                p.Age = 0f;
+                p.Life = Random.Range(0.5f, 1f);
+                p.Size = Random.Range(0.12f, 0.32f);
+                p.Transform.position = position;
+                p.Transform.localScale = Vector3.one * p.Size;
+                p.Renderer.color = p.Color;
+                p.Transform.gameObject.SetActive(true);
+                _live.Add(p);
+            }
+        }
+
+        void UpdateWaves(float dt)
+        {
+            for (int i = _waves.Count - 1; i >= 0; i--)
+            {
+                var w = _waves[i];
+                w.Age += dt;
+                float k = w.Age / w.Life;
+                if (k >= 1f)
+                {
+                    Destroy(w.Renderer.gameObject);
+                    _waves.RemoveAt(i);
+                    continue;
+                }
+                float ease = 1f - (1f - k) * (1f - k) * (1f - k);
+                w.Renderer.transform.localScale = Vector3.one * (w.Size * ease);
+                var c = w.Color;
+                c.a *= 1f - k;
+                w.Renderer.color = c;
             }
         }
 
@@ -168,6 +236,8 @@ namespace RecipeSlicer
         {
             float dt = Time.deltaTime;
             UpdateSplats(dt);
+            // Волна — в реальном времени, но в паузе стоит.
+            if (Time.timeScale > 0f) UpdateWaves(UiTime.Delta);
             for (int i = _live.Count - 1; i >= 0; i--)
             {
                 var p = _live[i];

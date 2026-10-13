@@ -17,9 +17,15 @@ namespace RecipeSlicer
         const float CrossWrongChance = 0.6f;
         /// <summary>Отменённый клиентом ингредиент летит как лишний с такой долей — ловушка привычки.</summary>
         const float CancelledWrongShare = 0.35f;
+        /// <summary>Первый бонус — через столько секунд раунда (случайно в диапазоне), следующие — реже.</summary>
+        static readonly Vector2 FirstBonusDelay = new Vector2(6f, 9f);
+        static readonly Vector2 BonusInterval = new Vector2(10f, 14f);
+        /// <summary>Под самый конец раунда бонус уже не нужен — не выпускаем.</summary>
+        const float BonusLastProgress = 0.9f;
 
         readonly GameManager _game;
         float _timer;
+        float _bonusTimer;
         int _sortingCounter;
         bool _lastFromLeft;
         int _sameSideStreak;
@@ -32,12 +38,14 @@ namespace RecipeSlicer
         public void Reset()
         {
             _timer = 0.2f;
+            _bonusTimer = Random.Range(FirstBonusDelay.x, FirstBonusDelay.y);
             _sameSideStreak = 0;
         }
 
         /// <param name="progress">0..1 — доля прошедшего времени раунда.</param>
-        public void Tick(float dt, float progress, RoundState round)
+        public void Tick(float dt, float progress, RoundState round, AbilityState abilities)
         {
+            TickBonus(dt, progress, round, abilities);
             _timer -= dt;
             if (_timer > 0f) return;
 
@@ -97,6 +105,45 @@ namespace RecipeSlicer
             Spawn(left, speed, true, y, apex, travel);
             Spawn(right, speed, false, y, apex, travel);
         }
+
+        /// <summary>
+        /// Редкий бонусный объект: летит один, повыше и побыстрее обычных — его надо успеть заметить.
+        /// Чаще выпадает способность, зарядов которой меньше.
+        /// </summary>
+        void TickBonus(float dt, float progress, RoundState round, AbilityState abilities)
+        {
+            _bonusTimer -= dt;
+            if (_bonusTimer > 0f || progress > BonusLastProgress) return;
+            // Пока предыдущий бонус ещё в воздухе — ждём, два сразу не выпускаем.
+            if (_game.BonusInFlight)
+            {
+                _bonusTimer = 1f;
+                return;
+            }
+            _bonusTimer = Random.Range(BonusInterval.x, BonusInterval.y);
+
+            var all = Abilities.All;
+            float total = 0f;
+            foreach (var ability in all) total += BonusWeight(abilities, ability.Type);
+            float roll = Random.value * total;
+            var def = all[all.Length - 1].Bonus;
+            foreach (var ability in all)
+            {
+                roll -= BonusWeight(abilities, ability.Type);
+                if (roll > 0f) continue;
+                def = ability.Bonus;
+                break;
+            }
+
+            var area = _game.PlayArea;
+            float speed = Mathf.Lerp(round.Recipe.Difficulty.SpeedStart, round.Recipe.Difficulty.SpeedEnd, progress) * 1.1f;
+            Spawn(def, speed, ChooseSide(), Random.Range(area.yMin + 1f, area.yMin + 2.5f),
+                Random.Range(area.yMax - 2.6f, area.yMax - 1.2f), Random.Range(0.6f, 0.85f));
+            _game.Sfx.PlayLaunch();
+        }
+
+        static float BonusWeight(AbilityState abilities, AbilityType type) =>
+            1f + Abilities.MaxCharges - abilities.Charges(type);
 
         /// <summary>Сторона случайная, но не больше MaxSameSide подряд с одной стороны.</summary>
         bool ChooseSide()

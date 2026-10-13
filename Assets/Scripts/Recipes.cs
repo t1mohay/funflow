@@ -7,12 +7,17 @@ namespace RecipeSlicer
         public readonly string Id;
         public readonly string Name;
         public readonly Color Color;
+        /// <summary>Не ингредиент, а бонусный объект: разрезал — получил заряд этой способности.</summary>
+        public readonly AbilityType Ability;
 
-        public IngredientDef(string id, string name, Color color)
+        public bool IsBonus => Ability != AbilityType.None;
+
+        public IngredientDef(string id, string name, Color color, AbilityType ability = AbilityType.None)
         {
             Id = id;
             Name = name;
             Color = color;
+            Ability = ability;
         }
     }
 

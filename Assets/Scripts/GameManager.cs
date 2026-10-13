@@ -23,9 +23,9 @@ namespace RecipeSlicer
         /// <summary>Серия нужных разрезов без ошибок, с которой клинок золотой и огненный.</summary>
         const int HotStreak = 5, FireStreak = 12;
         /// <summary>Комбо из стольких нужных и больше — короткое замедление времени с приближением.</summary>
-        const int SlowMoCombo = 4;
-        const float SlowMoDuration = 0.6f;
-        const float SlowMoScale = 0.3f;
+        const int ComboSlowMoMin = 4;
+        const float ComboSlowMoDuration = 0.6f;
+        const float ComboSlowMoScale = 0.3f;
         /// <summary>«Без чего» для плашки «Клиент передумал: без …!».</summary>
         static readonly Dictionary<string, string> WithoutName = new Dictionary<string, string>
         {
@@ -38,12 +38,28 @@ namespace RecipeSlicer
         static readonly Color BackgroundBottom = new Color32(0x1E, 0x14, 0x0F, 0xFF);
         /// <summary>Затемнение картинки-фона: меньше — темнее, ингредиенты контрастнее.</summary>
         static readonly Color BackgroundTint = new Color(0.6f, 0.6f, 0.64f);
+        /// <summary>«Стоп-кадр» при разрезе бонуса: на миг почти замирает, потом плавно разгоняется.</summary>
+        const float HitStopDuration = 0.45f;
+        const float HitStopScale = 0.08f;
+        /// <summary>Радиус и сила толчка: соседние ингредиенты разлетаются от взорванного бонуса.</summary>
+        const float BonusPushRadius = 3f;
+        const float BonusPushForce = 4f;
 
         public Sfx Sfx { get; private set; }
         /// <summary>Игра на паузе: время остановлено, открыто меню паузы.</summary>
         public bool IsPaused { get; private set; }
         /// <summary>Идёт раунд и можно резать (не пауза, не отсчёт, не результат).</summary>
         public bool IsSlicing => _state == State.Playing && !IsPaused;
+        /// <summary>Бонусный объект сейчас в воздухе — спавнер не выпускает второй.</summary>
+        public bool BonusInFlight
+        {
+            get
+            {
+                foreach (var ingredient in _active)
+                    if (ingredient != null && ingredient.Def.IsBonus) return true;
+                return false;
+            }
+        }
         public Rect PlayArea { get; private set; }
         public float ViewHalfHeight => CameraSize;
 
@@ -58,13 +74,17 @@ namespace RecipeSlicer
         /// <summary>Когда (доля раунда) клиент передумает; новое значение каждый раунд.</summary>
         float _changeMindAt;
         bool _mindChecked;
-        float _slowMoTime;
-        Vector2 _slowMoFocus;
+        float _comboSlowMo;
+        Vector2 _comboSlowMoFocus;
         readonly List<Ingredient> _active = new List<Ingredient>();
 
         State _state;
         RecipeDef _recipe;
         RoundState _round;
+        AbilityState _abilities = new AbilityState();
+        float _hitStop;
+        /// <summary>Time.timeScale сейчас задаём мы (замедление / стоп-кадр) — по окончании вернуть 1.</summary>
+        bool _timeScaleOwned;
         float _stateTimer;
         int _countdownStep;
         int _lastTickSecond;
@@ -137,6 +157,8 @@ namespace RecipeSlicer
             _fx.ClearSplats();
             _recipe = recipe;
             _round = new RoundState(recipe);
+            _abilities = new AbilityState();
+            ResetTimeEffects();
             _spawner.Reset();
             _lastTickSecond = -1;
             _comboSize = 0;
@@ -149,7 +171,7 @@ namespace RecipeSlicer
             _countdownStep = -1;
             _stateTimer = 0f;
             _state = State.Countdown;
-            _ui.ShowRound(_round);
+            _ui.ShowRound(_round, _abilities);
             _ui.ShowBanner("Режь только то, что в списке «НУЖНО»!", GameUI.AccentColor, 2.6f);
             Sfx.PlayClick();
             Sfx.PlayMusic(MusicTrack.Round, restart: true);
@@ -181,6 +203,7 @@ namespace RecipeSlicer
             if (IsPaused || (_state != State.Countdown && _state != State.Playing)) return;
             IsPaused = true;
             Time.timeScale = 0f;
+            Sfx.SetSlowMo(false);
             _ui.ShowPause(true);
             Sfx.PlayClick();
             // В паузе играет музыка меню; музыка раунда запомнит место и продолжится после паузы.
@@ -198,7 +221,7 @@ namespace RecipeSlicer
         void ClearPause()
         {
             IsPaused = false;
-            StopSlowMo();
+            Time.timeScale = 1f; // эффекты времени (UpdateTimeScale) вернут своё со следующего кадра
             _ui.ShowPause(false);
         }
 
@@ -209,6 +232,7 @@ namespace RecipeSlicer
         void GoToMenu(bool dishSelect = false)
         {
             ClearPause();
+            ResetTimeEffects();
             ClearIngredients();
             _fx.ClearSplats();
             _state = State.Menu;
@@ -219,7 +243,7 @@ namespace RecipeSlicer
         void Update()
         {
             UpdateLayout();
-            UpdateSlowMo();
+            UpdateTimeScale();
 
             if (IsPaused)
             {
@@ -262,6 +286,7 @@ namespace RecipeSlicer
                         CompleteWithKonami();
                         return;
                     }
+                    HandleAbilityKeys();
                     UpdatePlaying();
                     break;
 
@@ -314,8 +339,9 @@ namespace RecipeSlicer
         void UpdatePlaying()
         {
             _round.TimeLeft -= Time.deltaTime;
+            _abilities.Tick(UiTime.Delta);
             float progress = Mathf.Clamp01(1f - _round.TimeLeft / _recipe.RoundTime);
-            _spawner.Tick(Time.deltaTime, progress, _round);
+            _spawner.Tick(Time.deltaTime, progress, _round, _abilities);
             if (_round.Cancelled == null && !_mindChecked && progress >= _changeMindAt)
             {
                 ChangeMind();
@@ -353,8 +379,15 @@ namespace RecipeSlicer
             _comboSize = 0;
             if (size < RoundState.ComboMin) return;
 
-            if (size >= SlowMoCombo) StartSlowMo(_comboPosition);
+            if (size >= ComboSlowMoMin) StartComboSlowMo(_comboPosition);
             int bonus = _round.AddCombo(size);
+            // Под «Очки ×2» комбо тоже удваивается.
+            if (_abilities.IsActive(AbilityType.Multiplier))
+            {
+                int extra = bonus * (Abilities.MultiplierFactor - 1);
+                _round.AddMultiplierBonus(extra);
+                bonus += extra;
+            }
             Sfx.PlayCombo();
             _fx.Shake(0.1f, 0.12f);
             _ui.Floating(_comboPosition + Vector3.up * 1.2f, $"КОМБО ×{size}! +{bonus}", GameUI.AccentColor, 64);
@@ -365,6 +398,9 @@ namespace RecipeSlicer
         void FinishRound(string banner, Color color)
         {
             FlushCombo();
+            // Способности и замедление на итоговой плашке уже не нужны.
+            _abilities.StopActive();
+            _hitStop = 0f;
             _state = State.Finishing;
             _ui.SetPauseAvailable(false);
             _stateTimer = 1.3f;
@@ -386,7 +422,7 @@ namespace RecipeSlicer
 
         void ShowResults()
         {
-            StopSlowMo();
+            ResetTimeEffects();
             ClearIngredients();
             int best = BestScore(_recipe);
             bool newBest = false;
@@ -444,8 +480,11 @@ namespace RecipeSlicer
                 var ingredient = _active[i];
                 if (ingredient.IsSliced) continue;
                 if (DistanceToSegment(ingredient.Position, from, to) > ingredient.HitRadius) continue;
+                // Щит: нож проходит сквозь лишнее и перебор.
+                if (ShieldPasses(ingredient.Def)) continue;
                 _active.RemoveAt(i);
-                Slice(ingredient, direction);
+                if (ingredient.Def.IsBonus) SliceBonus(ingredient, direction);
+                else Slice(ingredient, direction);
             }
         }
 
@@ -466,7 +505,15 @@ namespace RecipeSlicer
             {
                 case SliceResult.Needed:
                     Sfx.PlayGood(_round.Collected(def) / (float)Mathf.Max(1, _round.Need(def)));
-                    _ui.Floating(textPos, $"{def.Name} +{RoundState.PointsPerIngredient}", GameUI.GoodColor);
+                    int points = RoundState.PointsPerIngredient;
+                    if (_abilities.IsActive(AbilityType.Multiplier))
+                    {
+                        int extra = points * (Abilities.MultiplierFactor - 1);
+                        _round.AddMultiplierBonus(extra);
+                        points += extra;
+                    }
+                    _ui.Floating(textPos, $"{def.Name} +{points}",
+                        points > RoundState.PointsPerIngredient ? GameUI.AccentColor : GameUI.GoodColor);
                     // Нужные подряд с промежутком меньше ComboWindow — одно движение.
                     _comboSize = _comboAge < ComboWindow ? _comboSize + 1 : 1;
                     _comboAge = 0f;
@@ -550,33 +597,132 @@ namespace RecipeSlicer
             if (_swipe != null) _swipe.SetHeat(0);
         }
 
-        void StartSlowMo(Vector2 focus)
+        void StartComboSlowMo(Vector2 focus)
         {
-            _slowMoTime = SlowMoDuration;
-            _slowMoFocus = focus;
+            _comboSlowMo = ComboSlowMoDuration;
+            _comboSlowMoFocus = focus;
         }
 
-        /// <summary>Замедление: время резко проседает и плавно возвращается; камера в это время чуть ближе к комбо.</summary>
-        void UpdateSlowMo()
+        // ───────────────────────── Бонусы и способности ─────────────────────────
+
+        /// <summary>Под щитом нож не режет лишнее и то, чего уже хватает.</summary>
+        public bool ShieldPasses(IngredientDef def)
         {
-            if (_slowMoTime <= 0f || IsPaused) return;
-            _slowMoTime -= UiTime.Delta;
-            if (_slowMoTime <= 0f)
+            if (_round == null || def.IsBonus || !_abilities.IsActive(AbilityType.Shield)) return false;
+            return _round.Peek(def) != SliceResult.Needed;
+        }
+
+        /// <summary>
+        /// Разрезан бонусный объект: заряд способности, стоп-кадр, искры, ударная волна, тряска,
+        /// и соседние ингредиенты разлетаются в стороны.
+        /// </summary>
+        void SliceBonus(Ingredient ingredient, Vector2 direction)
+        {
+            var def = ingredient.Def;
+            var ability = Abilities.Of(def.Ability);
+            Vector2 position = ingredient.Position;
+            bool added = _abilities.AddCharge(def.Ability);
+            ingredient.Slice(direction, 2.2f);
+
+            _hitStop = HitStopDuration;
+            _fx.Sparkle(position, def.Color, 36);
+            _fx.Burst(position, Color.white, 12);
+            _fx.Shockwave(position, def.Color, 7f);
+            _fx.Shockwave(position, Color.white, 4f, 0.3f);
+            _fx.Shake(0.28f, 0.35f);
+            _ui.Flash(def.Color);
+            Sfx.PlayChop();
+            Sfx.PlayBonus();
+
+            foreach (var other in _active)
             {
-                StopSlowMo();
+                if (other == null || other.IsSliced) continue;
+                Vector2 away = other.Position - position;
+                float distance = away.magnitude;
+                if (distance > BonusPushRadius) continue;
+                float strength = BonusPushForce * (1f - distance / BonusPushRadius);
+                other.Push((distance > 0.01f ? away / distance : Vector2.up) * strength + Vector2.up * (strength * 0.3f));
+            }
+
+            Vector3 textPos = position + Vector2.up * 0.8f;
+            string key = InputUtil.KeyName(HotkeyAction.Ability1 + (int)def.Ability);
+            if (added)
+            {
+                _ui.Floating(textPos, $"+{ability.Name}!", def.Color, 60);
+                _ui.ShowBanner($"Бонус «{ability.Name}»: жми {key}!", def.Color, 1.8f);
+            }
+            else
+            {
+                _ui.Floating(textPos, $"{ability.Name}: уже максимум", def.Color, 48);
+            }
+            _ui.OnBonus(def.Ability);
+        }
+
+        /// <summary>Горячие клавиши способностей во время раунда.</summary>
+        void HandleAbilityKeys()
+        {
+            for (int i = 0; i < Abilities.All.Length; i++)
+                if (InputUtil.AbilityPressed(i)) ActivateAbility(Abilities.All[i].Type);
+        }
+
+        /// <summary>Применить способность: по клавише или клику по слоту панели «Бонусы».</summary>
+        public void ActivateAbility(AbilityType type)
+        {
+            if (!IsSlicing) return;
+            var ability = Abilities.Of(type);
+            if (!_abilities.Activate(type))
+            {
+                // Нет заряда или уже действует — слот коротко «дёргается».
+                _ui.OnAbilityDenied(type);
                 return;
             }
-            float k = 1f - _slowMoTime / SlowMoDuration; // 0 → 1
-            float depth = k < 0.15f ? k / 0.15f : 1f - Mathf.SmoothStep(0f, 1f, (k - 0.15f) / 0.85f);
-            Time.timeScale = Mathf.Lerp(1f, SlowMoScale, depth);
-            _fx.SetZoom(depth, _slowMoFocus);
+            Sfx.PlayAbility();
+            _fx.Shake(0.12f, 0.15f);
+            _ui.ShowBanner($"{ability.Name}!", ability.Color, 1.2f);
+            _ui.OnAbilityUsed(type);
         }
 
-        void StopSlowMo()
+        void ResetTimeEffects()
         {
-            _slowMoTime = 0f;
-            Time.timeScale = IsPaused ? 0f : 1f;
-            if (_fx != null) _fx.SetZoom(0f, Vector2.zero);
+            _hitStop = 0f;
+            _comboSlowMo = 0f;
+            _fx.SetZoom(0f, Vector2.zero);
+            _abilities.StopActive();
+            if (_timeScaleOwned && !IsPaused) Time.timeScale = 1f;
+            _timeScaleOwned = false;
+            Sfx.SetSlowMo(false);
+        }
+
+        /// <summary>
+        /// Скорость игры: замедление от способности, стоп-кадр от бонуса и замедление на комбо. Пауза главнее (там 0).
+        /// Time.timeScale трогаем, только пока эффект действует, — чтобы не мешать dev-скриптам.
+        /// </summary>
+        void UpdateTimeScale()
+        {
+            if (IsPaused) return;
+            float scale = 1f;
+            bool slow = _abilities.IsActive(AbilityType.SlowMo);
+            if (slow) scale = Abilities.SlowMoScale;
+            if (_hitStop > 0f)
+            {
+                _hitStop = Mathf.Max(0f, _hitStop - UiTime.Delta);
+                // Резко замирает и плавно (квадратично) возвращается к обычной скорости.
+                float k = _hitStop / HitStopDuration;
+                scale = Mathf.Min(scale, Mathf.Lerp(1f, HitStopScale, k * k));
+            }
+            if (_comboSlowMo > 0f)
+            {
+                // Комбо ×4+: время резко проседает и плавно возвращается, камера в это время чуть ближе к комбо.
+                _comboSlowMo = Mathf.Max(0f, _comboSlowMo - UiTime.Delta);
+                float t = 1f - _comboSlowMo / ComboSlowMoDuration;
+                float depth = t < 0.15f ? t / 0.15f : 1f - Mathf.SmoothStep(0f, 1f, (t - 0.15f) / 0.85f);
+                scale = Mathf.Min(scale, Mathf.Lerp(1f, ComboSlowMoScale, depth));
+                _fx.SetZoom(_comboSlowMo > 0f ? depth : 0f, _comboSlowMoFocus);
+            }
+            bool owned = scale < 1f;
+            if (owned || _timeScaleOwned) Time.timeScale = scale;
+            _timeScaleOwned = owned;
+            Sfx.SetSlowMo(slow);
         }
 
         static float DistanceToSegment(Vector2 point, Vector2 a, Vector2 b)
