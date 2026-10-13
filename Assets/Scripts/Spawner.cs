@@ -18,8 +18,8 @@ namespace RecipeSlicer
         /// <summary>Отменённый клиентом ингредиент летит как лишний с такой долей — ловушка привычки.</summary>
         const float CancelledWrongShare = 0.35f;
         /// <summary>Первый бонус — через столько секунд раунда (случайно в диапазоне), следующие — реже.</summary>
-        static readonly Vector2 FirstBonusDelay = new Vector2(6f, 9f);
-        static readonly Vector2 BonusInterval = new Vector2(10f, 14f);
+        static readonly Vector2 FirstBonusDelay = new Vector2(14f, 18f);
+        static readonly Vector2 BonusInterval = new Vector2(20f, 26f);
         /// <summary>Под самый конец раунда бонус уже не нужен — не выпускаем.</summary>
         const float BonusLastProgress = 0.9f;
 
