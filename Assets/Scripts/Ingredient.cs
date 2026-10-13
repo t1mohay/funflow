@@ -14,6 +14,11 @@ namespace RecipeSlicer
         Transform _body;
         Transform _shadow;
         SpriteRenderer _bodyRenderer;
+        /// <summary>Ореол вокруг бонусного объекта (у обычных ингредиентов — null).</summary>
+        SpriteRenderer _glow;
+        /// <summary>Под щитом лишнее полупрозрачно: нож проходит сквозь него. 0 — обычный вид, 1 — «призрак».</summary>
+        float _ghost;
+        float _age;
         Vector2 _velocity;
         float _gravity;
         float _speed;
@@ -54,7 +59,17 @@ namespace RecipeSlicer
             {
                 BuildPlaceholder(def, radius, sortingOrder);
             }
+
+            // Бонус заметен издалека: пульсирующий ореол в цвете способности под картинкой.
+            if (def.IsBonus)
+            {
+                _glow = NewSprite("Glow", transform, Art.SoftGlow, def.Color, sortingOrder - 1);
+                _glow.transform.localScale = Vector3.one * (radius * 4.2f);
+            }
         }
+
+        /// <summary>Толчок от взрыва бонуса рядом — ингредиенты разлетаются в стороны.</summary>
+        public void Push(Vector2 impulse) => _velocity += impulse;
 
         void BuildPlaceholder(IngredientDef def, float radius, int sortingOrder)
         {
@@ -112,12 +127,49 @@ namespace RecipeSlicer
             _body.Rotate(0f, 0f, _spin * dt);
             if (_shadow != null) _shadow.localRotation = _body.localRotation;
 
+            _age += Time.deltaTime;
+            if (_glow != null)
+            {
+                float pulse = 0.5f + 0.5f * Mathf.Sin(_age * 9f);
+                var c = Def.Color;
+                c.a = Mathf.Lerp(0.45f, 0.85f, pulse);
+                _glow.color = c;
+                _glow.transform.localScale = Vector3.one * (_radius * Mathf.Lerp(3.8f, 4.6f, pulse));
+            }
+
+            float ghost = _game.ShieldPasses(Def) ? 1f : 0f;
+            if (!Mathf.Approximately(ghost, _ghost))
+            {
+                _ghost = Mathf.MoveTowards(_ghost, ghost, Time.unscaledDeltaTime * 6f);
+                SetAlpha(Mathf.Lerp(1f, 0.35f, _ghost));
+            }
+
             if (_velocity.y < 0f && transform.position.y < -_game.ViewHalfHeight - _radius * 1.5f)
                 _game.OnIngredientLost(this);
         }
 
+        /// <summary>Прозрачность всех частей (тело, тень, подписи) — для «призрака» под щитом.</summary>
+        void SetAlpha(float alpha)
+        {
+            foreach (var sr in GetComponentsInChildren<SpriteRenderer>())
+            {
+                if (sr == _glow) continue;
+                var c = sr.color;
+                // Тень изначально полупрозрачная — сохраняем её долю.
+                c.a = sr.transform == _shadow ? 0.3f * alpha : alpha;
+                sr.color = c;
+            }
+            foreach (var mesh in GetComponentsInChildren<TextMesh>())
+            {
+                var c = mesh.color;
+                c.a = alpha;
+                mesh.color = c;
+            }
+        }
+
         /// <summary>Разрезать вдоль направления свайпа. Объект уничтожается, вместо него летят половинки.</summary>
-        public void Slice(Vector2 direction)
+        /// <param name="scatter">Во сколько раз сильнее разлетаются половинки (у бонуса — взрыв).</param>
+        public void Slice(Vector2 direction, float scatter = 1f)
         {
             IsSliced = true;
 
@@ -125,8 +177,8 @@ namespace RecipeSlicer
             Vector2 localDirection = Quaternion.Inverse(_body.rotation) * direction;
             var normal = new Vector2(-direction.y, direction.x);
             var source = _bodyRenderer.sprite;
-            SpawnHalf(Art.CutHalf(source, localDirection, true), normal, direction);
-            SpawnHalf(Art.CutHalf(source, localDirection, false), -normal, direction);
+            SpawnHalf(Art.CutHalf(source, localDirection, true), normal * scatter, direction);
+            SpawnHalf(Art.CutHalf(source, localDirection, false), -normal * scatter, direction);
 
             Destroy(gameObject);
         }

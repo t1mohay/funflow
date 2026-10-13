@@ -16,7 +16,7 @@ namespace RecipeSlicer
     {
         /// <summary>
         /// Доля ширины экрана под каждую боковую панель; спавнер не залезает под них.
-        /// Обычно 18,5 %, но на узком экране панели расширяются, чтобы заголовки «НУЖНО» / «НЕ НУЖНО»
+        /// Обычно 18,5 %, но на узком экране панели расширяются, чтобы заголовки «НУЖНО» / «БОНУСЫ»
         /// всегда помещались в одну строку (LayoutSidePanels).
         /// </summary>
         public static float SidePanelFraction { get; private set; } = BaseSidePanelFraction;
@@ -59,6 +59,25 @@ namespace RecipeSlicer
             public Text Count;
             public float Punch;
         }
+
+        sealed class AbilitySlot
+        {
+            public AbilityDef Def;
+            public RectTransform Rect;
+            public Image Background;
+            public Image Icon;
+            public Text Name;
+            public Text Hint;
+            public GameObject Badge;
+            public Text BadgeText;
+            public RectTransform Bar;
+            public float Punch;
+            public float Shake;
+        }
+
+        const float SlotHeight = 150f;
+        const float SlotGap = 12f;
+        static readonly Color SlotEmptyColor = new Color32(0x4C, 0x43, 0x3D, 0x90);
 
         sealed class Floater
         {
@@ -105,8 +124,13 @@ namespace RecipeSlicer
             (FullScreenMode.FullScreenWindow, "Полный экран"),
             (FullScreenMode.Windowed, "В окне"),
         };
-        RectTransform _neededList, _wrongList, _floatLayer, _timerRect;
-        RectTransform _neededPanel, _wrongPanel;
+        RectTransform _neededList, _abilityList, _floatLayer, _timerRect;
+        RectTransform _neededPanel, _abilityPanel;
+        /// <summary>Слоты панели «Бонусы» (вместо списка «Не нужно»), по одному на способность.</summary>
+        readonly List<AbilitySlot> _slots = new List<AbilitySlot>();
+        AbilityState _abilities;
+        /// <summary>Лёгкий цветной оттенок экрана, пока действует способность.</summary>
+        Image _abilityTint;
         Image _dishBadge;
         GameObject _timerPlate;
         Text _timer, _score, _countdown, _banner;
@@ -142,6 +166,8 @@ namespace RecipeSlicer
 
             // Порядок создания = порядок отрисовки.
             BuildHud();
+            _abilityTint = AddImage(Fill(NewRect("AbilityTint", _hud.transform)), Color.clear, null);
+            _abilityTint.transform.SetAsFirstSibling();
             _flash = AddImage(Fill(NewRect("Flash", _root)), Color.clear, null);
             _floatLayer = Fill(NewRect("Floaters", _root));
             // Плашка — только между боковыми панелями, чтобы не залезала на списки.
@@ -191,8 +217,10 @@ namespace RecipeSlicer
             _pause.SetActive(visible);
         }
 
-        public void ShowRound(RoundState round)
+        public void ShowRound(RoundState round, AbilityState abilities)
         {
+            _abilities = abilities;
+            foreach (var slot in _slots) FitSingleLine(slot.Name, 34, 18);
             _menu.SetActive(false);
             _results.SetActive(false);
             _hud.SetActive(true);
@@ -251,6 +279,10 @@ namespace RecipeSlicer
                 sb.Append($"Перебор: {round.OverflowCount}  (−{round.OverflowCount * RoundState.OverflowPenalty})\n");
             if (round.ComboCount > 0)
                 sb.Append($"Комбо: {round.ComboCount}  (+{round.ComboBonus})\n");
+            if (round.MultiplierBonus > 0)
+                sb.Append($"Очки ×2: +{round.MultiplierBonus}\n");
+            if (_abilities != null && _abilities.Used > 0)
+                sb.Append($"Способностей применено: {_abilities.Used}\n");
             _resDetails.text = sb.ToString();
             _resDetails.fontSize = 32;
 
@@ -387,6 +419,8 @@ namespace RecipeSlicer
             LayoutSidePanels();
             if (InputUtil.Listening != null && InputUtil.PollRebind()) RefreshSettingsUI();
 
+            RefreshAbilitySlots(dt);
+
             foreach (var row in _rows)
             {
                 if (row.Punch <= 0f) continue;
@@ -450,9 +484,10 @@ namespace RecipeSlicer
             _hud = hud.gameObject;
 
             _neededList = BuildSidePanel(hud, "Нужно", "НУЖНО", GoodColor, 0f, BaseSidePanelFraction, DishBadgeSize * 0.8f);
-            _wrongList = BuildSidePanel(hud, "НеНужно", "НЕ НУЖНО", BadColor, 1f - BaseSidePanelFraction, 1f, 0f);
+            _abilityList = BuildSidePanel(hud, "Бонусы", "БОНУСЫ", AccentColor, 1f - BaseSidePanelFraction, 1f, 0f);
             _neededPanel = (RectTransform)_neededList.parent;
-            _wrongPanel = (RectTransform)_wrongList.parent;
+            _abilityPanel = (RectTransform)_abilityList.parent;
+            BuildAbilitySlots();
 
             // Картинка блюда — в правом верхнем углу панели «Нужно», над колонкой счётчиков.
             _dishBadge = AddImage(Place(NewRect("Dish", _neededPanel), Vector2.one, new Vector2(-DishBadgeSize * 0.4f, -8f),
@@ -512,9 +547,7 @@ namespace RecipeSlicer
             _rows.Clear();
             for (int i = 0; i < recipe.Needed.Length; i++)
                 _rows.Add(MakeRow(_neededList, i, recipe.Needed[i].Ingredient, recipe.Needed[i].Count, false));
-            for (int i = 0; i < recipe.Wrong.Length; i++)
-                _rows.Add(MakeRow(_wrongList, i, recipe.Wrong[i], 0, true));
-            FitSidePanels(Mathf.Max(recipe.Needed.Length, recipe.Wrong.Length));
+            FitSidePanels(recipe.Needed.Length);
 
             var dish = Art.DishSprite(recipe);
             _dishBadge.sprite = dish;
@@ -529,29 +562,149 @@ namespace RecipeSlicer
         /// </summary>
         void LayoutSidePanels()
         {
-            if (_neededPanel == null || _wrongPanel == null || _banner == null) return;
+            if (_neededPanel == null || _abilityPanel == null || _banner == null) return;
             float width = _root.rect.width;
             if (width <= 1f) return;
             float fraction = Mathf.Clamp(_sidePanelMinWidth / width, BaseSidePanelFraction, MaxSidePanelFraction);
             SidePanelFraction = fraction;   // спавнер (GameManager.UpdateLayout) не залезает под панели
             if (Mathf.Abs(fraction - _neededPanel.anchorMax.x) < 0.0005f) return;
             _neededPanel.anchorMax = new Vector2(fraction, _neededPanel.anchorMax.y);
-            _wrongPanel.anchorMin = new Vector2(1f - fraction, _wrongPanel.anchorMin.y);
+            _abilityPanel.anchorMin = new Vector2(1f - fraction, _abilityPanel.anchorMin.y);
             var banner = _banner.rectTransform;
             banner.anchorMin = new Vector2(fraction, banner.anchorMin.y);
             banner.anchorMax = new Vector2(1f - fraction, banner.anchorMax.y);
         }
 
-        /// <summary>Обе боковые панели одной высоты (по самому длинному списку) и по центру экрана — выровнены друг с другом.</summary>
+        /// <summary>Панель «Нужно» — по числу строк рецепта, по центру экрана по вертикали.</summary>
         void FitSidePanels(int rows)
         {
             float height = SidePanelTop + rows * (RowHeight + RowGap) - RowGap + SidePanelBottom;
-            foreach (var panel in new[] { _neededPanel, _wrongPanel })
-            {
-                panel.offsetMin = new Vector2(panel.offsetMin.x, -height * 0.5f);
-                panel.offsetMax = new Vector2(panel.offsetMax.x, height * 0.5f);
-            }
+            SetPanelHeight(_neededPanel, height);
         }
+
+        static void SetPanelHeight(RectTransform panel, float height)
+        {
+            panel.offsetMin = new Vector2(panel.offsetMin.x, -height * 0.5f);
+            panel.offsetMax = new Vector2(panel.offsetMax.x, height * 0.5f);
+        }
+
+        // ───────────────────────── Панель «Бонусы» ─────────────────────────
+
+        /// <summary>
+        /// Три слота способностей: иконка с числом зарядов, название, клавиша и что делает.
+        /// Пока способность действует — полоска оставшегося времени. Клик по слоту тоже применяет.
+        /// </summary>
+        void BuildAbilitySlots()
+        {
+            var all = Abilities.All;
+            for (int i = 0; i < all.Length; i++)
+            {
+                var def = all[i];
+                var rt = NewRect(def.Name, _abilityList);
+                rt.anchorMin = new Vector2(0f, 1f);
+                rt.anchorMax = new Vector2(1f, 1f);
+                rt.pivot = new Vector2(0.5f, 0.5f);
+                rt.sizeDelta = new Vector2(0f, SlotHeight);
+                rt.anchoredPosition = new Vector2(0f, -i * (SlotHeight + SlotGap) - SlotHeight * 0.5f);
+                var background = AddImage(rt, SlotEmptyColor, Art.RoundedRect);
+                var type = def.Type;
+                MakeButtonOn(rt, background, () => _game.ActivateAbility(type), click: false, hoverRing: false);
+
+                var iconRect = Place(NewRect("Icon", rt), new Vector2(0f, 0.5f), new Vector2(58f, 6f), new Vector2(92f, 92f));
+                var icon = AddImage(iconRect, Color.white, null);
+                SetIcon(icon, def.Bonus);
+
+                // Число зарядов — кружок в правом верхнем углу иконки.
+                var badge = Place(NewRect("Badge", iconRect), Vector2.one, new Vector2(-4f, -4f), new Vector2(42f, 42f));
+                AddImage(badge, def.Color * 0.55f + new Color(0f, 0f, 0f, 0.45f), Art.Circle).type = Image.Type.Simple;
+                var badgeText = AddText(Fill(NewRect("Count", badge)), "1", 30, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+                badgeText.horizontalOverflow = HorizontalWrapMode.Overflow;
+
+                var name = AddText(Stretch(NewRect("Name", rt), new Vector2(0f, 0.5f), Vector2.one, new Vector2(112f, -4f), new Vector2(-8f, -10f)),
+                    def.Name, 34, TextColor, TextAnchor.MiddleLeft, FontStyle.Bold);
+                FitSingleLine(name, 34, 18);
+                var hint = AddText(Stretch(NewRect("Hint", rt), Vector2.zero, new Vector2(1f, 0.5f), new Vector2(112f, 18f), new Vector2(-8f, 2f)),
+                    "", 24, TextColor, TextAnchor.MiddleLeft, FontStyle.Normal);
+                hint.horizontalOverflow = HorizontalWrapMode.Overflow;
+
+                // Полоска оставшегося времени — вдоль нижнего края слота.
+                var track = Stretch(NewRect("Track", rt), Vector2.zero, new Vector2(1f, 0f), new Vector2(14f, 8f), new Vector2(-14f, 16f));
+                AddImage(track, new Color(0f, 0f, 0f, 0.35f), null);
+                var bar = Stretch(NewRect("Bar", track), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+                AddImage(bar, def.Color, null);
+
+                _slots.Add(new AbilitySlot
+                {
+                    Def = def, Rect = rt, Background = background, Icon = icon, Name = name, Hint = hint,
+                    Badge = badge.gameObject, BadgeText = badgeText, Bar = bar,
+                });
+            }
+            SetPanelHeight(_abilityPanel, SidePanelTop + all.Length * (SlotHeight + SlotGap) - SlotGap + SidePanelBottom);
+        }
+
+        /// <summary>Каждый кадр: заряды, активность, полоска времени и подсказка с клавишей.</summary>
+        void RefreshAbilitySlots(float dt)
+        {
+            if (_abilities == null) return;
+            float pulse = 0.5f + 0.5f * Mathf.Sin(UiTime.Now * 8f);
+            bool anyActive = false;
+            Color tint = Color.clear;
+            for (int i = 0; i < _slots.Count; i++)
+            {
+                var slot = _slots[i];
+                var type = slot.Def.Type;
+                int charges = _abilities.Charges(type);
+                bool active = _abilities.IsActive(type);
+                bool ready = charges > 0 && !active;
+                string key = InputUtil.KeyName(HotkeyAction.Ability1 + i);
+
+                slot.Background.color = active
+                    ? Color.Lerp(SlotEmptyColor, slot.Def.Color, 0.35f + 0.25f * pulse)
+                    : ready ? Color.Lerp(RowColor, slot.Def.Color, 0.28f) : SlotEmptyColor;
+                slot.Icon.color = active || ready ? Color.white : new Color(0.55f, 0.55f, 0.55f, 0.55f);
+                slot.Name.color = active || ready ? TextColor : new Color(TextColor.r, TextColor.g, TextColor.b, 0.55f);
+                slot.Badge.SetActive(charges > 0);
+                slot.BadgeText.text = charges.ToString();
+                slot.Hint.text = active ? $"ещё {Mathf.CeilToInt(_abilities.TimeLeft(type))} с"
+                    : ready ? $"[{key}] — {slot.Def.Hint}"
+                    : $"[{key}] разрежь бонус";
+                slot.Hint.color = active ? slot.Def.Color : new Color(TextColor.r, TextColor.g, TextColor.b, ready ? 0.9f : 0.5f);
+                slot.Bar.parent.gameObject.SetActive(active);
+                if (active) slot.Bar.anchorMax = new Vector2(_abilities.ActiveFill(type), 1f);
+
+                if (active && !anyActive)
+                {
+                    anyActive = true;
+                    tint = slot.Def.Color;
+                }
+
+                // Готовый к применению слот слегка «дышит», после событий — отскок и дрожь.
+                slot.Punch = Mathf.Max(0f, slot.Punch - dt * 3f);
+                slot.Shake = Mathf.Max(0f, slot.Shake - dt * 4f);
+                float s = 1f + 0.18f * slot.Punch + (ready ? 0.025f * pulse : 0f);
+                slot.Rect.localScale = new Vector3(s, s, 1f);
+                float x = slot.Shake > 0f ? Mathf.Sin(UiTime.Now * 70f) * 10f * slot.Shake : 0f;
+                slot.Rect.anchoredPosition = new Vector2(x, slot.Rect.anchoredPosition.y);
+            }
+
+            tint.a = anyActive ? 0.07f + 0.03f * pulse : 0f;
+            _abilityTint.color = tint;
+        }
+
+        /// <summary>Разрезан бонус — его слот подпрыгивает.</summary>
+        public void OnBonus(AbilityType type)
+        {
+            if (type != AbilityType.None) _slots[(int)type].Punch = 1f;
+        }
+
+        public void OnAbilityUsed(AbilityType type)
+        {
+            _slots[(int)type].Punch = 1f;
+            Flash(Abilities.Of(type).Color);
+        }
+
+        /// <summary>Нечего применять — слот дрожит.</summary>
+        public void OnAbilityDenied(AbilityType type) => _slots[(int)type].Shake = 1f;
 
         Row MakeRow(RectTransform list, int index, IngredientDef def, int need, bool wrong)
         {
@@ -1610,10 +1763,12 @@ namespace RecipeSlicer
             var hotkeys = SettingsTab(screen, 2, "Горячие клавиши", panelPosition, panelSize);
             MenuText(Stretch(NewRect("Hint", hotkeys), new Vector2(0f, 1f), Vector2.one, new Vector2(40f, -76f), new Vector2(-40f, -20f)),
                 "Нажми на клавишу справа, затем — новую (Esc — отмена)", 30, MenuGreenText, TextAnchor.MiddleCenter, FontStyle.Bold);
-            const float rowHeight = 80f, rowGap = 12f;
+            // Высота строк — чтобы все клавиши поместились в панель (их стало больше со способностями).
+            const float rowGap = 8f, listTop = 90f, listBottom = 24f;
             var actions = InputUtil.Actions;
+            float rowHeight = Mathf.Min(80f, (panelSize.y - listTop - listBottom + rowGap) / actions.Length - rowGap);
             for (int i = 0; i < actions.Length; i++)
-                HotkeyRow(hotkeys, 90f + i * (rowHeight + rowGap), rowHeight, actions[i]);
+                HotkeyRow(hotkeys, listTop + i * (rowHeight + rowGap), rowHeight, actions[i]);
 
             // ── справа: кнопки по центру высоты панели и строка состояния под ними
             MenuButton(screen, new Vector2(560f, 65f), "Назад", true, () => CloseSettings());
@@ -1744,7 +1899,7 @@ namespace RecipeSlicer
         {
             var row = Stretch(NewRect(action.ToString(), panel), new Vector2(0f, 1f), Vector2.one, new Vector2(60f, -top - height), new Vector2(-60f, -top));
             MenuText(Stretch(NewRect("Label", row), Vector2.zero, new Vector2(0.58f, 1f), Vector2.zero, Vector2.zero),
-                HotkeyTitle(action), 34, MenuBrownText, TextAnchor.MiddleLeft, FontStyle.Bold);
+                HotkeyTitle(action), height < 70f ? 30 : 34, MenuBrownText, TextAnchor.MiddleLeft, FontStyle.Bold);
 
             var anchor = new Vector2(0.79f, 0.5f);
             var keySize = new Vector2(340f, height - 8f);
@@ -1757,7 +1912,7 @@ namespace RecipeSlicer
                 else InputUtil.BeginRebind(action);
                 RefreshSettingsUI();
             });
-            var label = MenuText(Fill(NewRect("Label", face.rectTransform)), "", 34, MenuGreenText, TextAnchor.MiddleCenter, FontStyle.Bold);
+            var label = MenuText(Fill(NewRect("Label", face.rectTransform)), "", height < 70f ? 30 : 34, MenuGreenText, TextAnchor.MiddleCenter, FontStyle.Bold);
             _hotkeyLabels.Add((action, label));
         }
 
@@ -1767,6 +1922,10 @@ namespace RecipeSlicer
             {
                 case HotkeyAction.Pause: return "Пауза / назад";
                 case HotkeyAction.Restart: return "Начать уровень заново";
+                case HotkeyAction.Ability1:
+                case HotkeyAction.Ability2:
+                case HotkeyAction.Ability3:
+                    return $"Способность: {Abilities.All[action - HotkeyAction.Ability1].Name}";
                 default:
                     int index = action - HotkeyAction.Dish1;
                     var all = Recipes.All;
